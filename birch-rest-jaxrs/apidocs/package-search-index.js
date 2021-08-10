@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","url":"allpackages-index.html"},{"l":"org.birchframework.framework.actuator.health"},{"l":"org.birchframework.framework.cxf"},{"l":"org.birchframework.framework.i18n"},{"l":"org.birchframework.framework.jaxrs"},{"l":"org.birchframework.resource"}]
