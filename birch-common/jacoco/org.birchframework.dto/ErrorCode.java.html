@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ErrorCode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.dto</a> &gt; <span class="el_source">ErrorCode.java</span></div><h1>ErrorCode.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.dto;
+
+import java.io.Serializable;
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlEnum;
+import javax.xml.bind.annotation.XmlType;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
+import static javax.xml.bind.annotation.XmlAccessType.PROPERTY;
+import static org.apache.commons.lang3.builder.ToStringStyle.*;
+
+/**
+ * Interface to be implemented by all enumerations that define error codes.
+ * @param &lt;E&gt; requires implementations be {@link Enum}s that implement this interface
+ * @author Keivan Khalichi
+ */
+@XmlAccessorType(PROPERTY)
+@XmlType(propOrder = {
+        &quot;code&quot;,
+        &quot;component&quot;,
+        &quot;description&quot;
+})
+@XmlEnum
+public interface ErrorCode&lt;E extends Enum&lt;E&gt; &amp; ErrorCode&lt;E&gt;&gt; extends Serializable {
+
+   int getCode();
+
+   Component getComponent();
+
+   String getDescription();
+
+   /**
+    * Create an {@link ErrorResponse} instance from this error code.
+    * @return error response object populated with data from this error code
+    */
+   ErrorResponse&lt;E&gt; errorResponse();
+
+   /**
+    * Convenience method that returns this instance as an {@link Enum} object
+    * @return this instance casted as an enum
+    */
+   @SuppressWarnings(&quot;unchecked&quot;)
+   default Enum&lt;E&gt; asEnum() {
+<span class="nc" id="L57">      return (Enum&lt;E&gt;) this;</span>
+   }
+
+   /**
+    * Takes the place of {@code toString}, which cannot be used as it has other use cases within the Birch Framework.
+    * @return string representation of implementations
+    */
+   default String asString() {
+<span class="nc" id="L65">      return new ToStringBuilder(this, SHORT_PREFIX_STYLE).append(&quot;errorCode&quot;, this.getCode())</span>
+<span class="nc" id="L66">                                                          .append(&quot;component&quot;, this.getComponent())</span>
+<span class="nc" id="L67">                                                          .append(&quot;description&quot;, this.getDescription())</span>
+<span class="nc" id="L68">                                                          .toString();</span>
+   }
+
+   /**
+    * Marshal's this enumeration into a JSON string.
+    * @return the JSON string of this object
+    */
+   default String toJSON() {
+<span class="nc" id="L76">      return new ToStringBuilder(this, JSON_STYLE).append(&quot;errorCode&quot;, this.getCode())</span>
+<span class="nc" id="L77">                                                  .append(&quot;component&quot;, this.getComponent())</span>
+<span class="nc" id="L78">                                                  .append(&quot;description&quot;, this.getDescription())</span>
+<span class="nc" id="L79">                                                  .build();</span>
+
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

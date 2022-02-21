@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SpanHeadersContainerBean.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-rest-jaxrs</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.i18n</a> &gt; <span class="el_source">SpanHeadersContainerBean.java</span></div><h1>SpanHeadersContainerBean.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.i18n;
+
+import java.util.UUID;
+import lombok.experimental.Delegate;
+import org.birchframework.framework.spring.ThreadScope;
+import org.springframework.beans.factory.annotation.Lookup;
+
+/**
+ * Wrapper around the {@link ThreadScope}ed {@link SpanHeadersContainer} bean.
+ * This is done so that beans that want access to the {@link SpanHeadersContainer} are not forced to be declared {@code abstract} just so they can provide
+ * an abstract {@link Lookup} method.
+ * @author Keivan Khalichi
+ */
+<span class="nc" id="L27">public abstract class SpanHeadersContainerBean {</span>
+
+   @Lookup
+<span class="nc" id="L30">   @Delegate</span>
+   abstract SpanHeadersContainer delegate();
+
+   public void setLocale(final String theLocale) {
+<span class="nc" id="L34">      this.delegate().setLocale(theLocale);</span>
+<span class="nc" id="L35">   }</span>
+
+   void setCorrelationID(final UUID theCorrelationID) {
+<span class="nc" id="L38">      this.delegate().setCorrelationID(theCorrelationID);</span>
+<span class="nc" id="L39">   }</span>
+
+   public void setCorrelationID(final String theCorrelationID) {
+<span class="nc" id="L42">      this.delegate().setCorrelationID(theCorrelationID);</span>
+<span class="nc" id="L43">   }</span>
+
+   public String toString() {
+<span class="nc" id="L46">      return this.delegate().toString();</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RateGauge.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.metric</a> &gt; <span class="el_source">RateGauge.java</span></div><h1>RateGauge.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.metric;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import lombok.Builder;
+import lombok.NonNull;
+import lombok.experimental.Delegate;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.time.StopWatch;
+import org.springframework.util.CollectionUtils;
+
+/**
+ * Rate calculating gauge.  Registers a {@link Gauge} given the configurable parameters of the builder.  At the very least, the following
+ * configurations are needed:
+ * &lt;ul&gt;
+ *    &lt;li&gt;{@link RateGaugeBuilder#withName(String)}&lt;/li&gt;
+ *    &lt;li&gt;{@link RateGaugeBuilder#register()}&lt;/li&gt;
+ * &lt;/ul&gt;
+ * Call the {@link RateGaugeBuilder#register()} method to obtain an immutable instance.  The instance internally builds and delegates to a {@link Gauge}.
+ * Must call the {@link #increment()} method in order to update the internal counter of the gauge. During each sampling, number of internal counter
+ * increments per second is calculated and reported to the {@link MeterRegistry}.  In order to override this default calculation, provide a
+ * {@link BiFunction} using {@link RateGaugeBuilder#withValueFunction(BiFunction)}.  For example:
+ * &lt;br/&gt;&lt;br/&gt;
+ * &lt;pre&gt;
+ * final var rateGauge = RateGauge.builder()
+ *                                .name(&quot;my.app.metric&quot;)
+ *                                .valueFunction((count, time) -&amp;gt; count / (time / 1000D))   // Calculate rate as count per second
+ *                                .register();
+ * &lt;/pre&gt;
+ * The {@link #increment()} method updates the internal atomic counter, asynchronously in order to minimize performance degradation at the caller.
+ * @author Keivan Khalichi
+ */
+@SuppressWarnings({&quot;AutoBoxing&quot;, &quot;PMD.UnusedPrivateField&quot;})
+public class RateGauge {
+
+<span class="nc" id="L55">   private static final ExecutorService threadPool = Executors.newCachedThreadPool();</span>
+
+<span class="nc" id="L57">   @Delegate</span>
+   private final Gauge                          delegate;
+   private final AtomicLong                     counter;
+   private final StopWatch                      stopWatch;
+   private final BiFunction&lt;Long, Long, Double&gt; valueFunction;
+
+<span class="nc bnc" id="L63" title="All 4 branches missed.">   @Builder(buildMethodName = &quot;register&quot;)</span>
+<span class="nc bnc" id="L64" title="All 4 branches missed.">   protected RateGauge(@NonNull final String withName, final String withDescription, @NonNull final MeterRegistry withRegistry,</span>
+<span class="nc" id="L65">                       final BiFunction&lt;Long, Long, Double&gt; withValueFunction, final List&lt;Tag&gt; withTags) {</span>
+<span class="nc" id="L66">      this.counter       = new AtomicLong(0);</span>
+<span class="nc" id="L67">      this.valueFunction = withValueFunction;</span>
+<span class="nc" id="L68">      final var aBuilder = Gauge.builder(withName, this::sample);</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">      if (!CollectionUtils.isEmpty(withTags)) {</span>
+<span class="nc" id="L70">         aBuilder.tags(withTags);</span>
+      }
+<span class="nc bnc" id="L72" title="All 2 branches missed.">      if (StringUtils.isNotBlank(withDescription)) {</span>
+<span class="nc" id="L73">         aBuilder.description(withDescription);</span>
+      }
+<span class="nc" id="L75">      this.delegate  = aBuilder.register(withRegistry);</span>
+<span class="nc" id="L76">      this.stopWatch = StopWatch.createStarted();</span>
+<span class="nc" id="L77">   }</span>
+
+   public void increment() {
+<span class="nc" id="L80">      threadPool.execute(this.counter::incrementAndGet);</span>
+<span class="nc" id="L81">   }</span>
+
+   /**
+    * Calculates rate as count per second.  To override, provide a {@link BiFunction} to the
+    * {@link RateGaugeBuilder#valueFunction} when building a new instance of this class.
+    * @return rate as count per second
+    */
+   @SuppressWarnings(&quot;AutoUnboxing&quot;)
+   protected double sample() {
+<span class="nc" id="L90">      final var aCount = this.counter.getAndSet(0);</span>
+<span class="nc" id="L91">      final var aTime = this.stopWatch.getTime();</span>
+<span class="nc" id="L92">      this.stopWatch.reset();</span>
+<span class="nc" id="L93">      this.stopWatch.start();</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">      return this.valueFunction == null ? aCount / (aTime / 1_000D) : this.valueFunction.apply(aCount, aTime);</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

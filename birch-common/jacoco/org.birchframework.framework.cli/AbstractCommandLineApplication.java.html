@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractCommandLineApplication.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.cli</a> &gt; <span class="el_source">AbstractCommandLineApplication.java</span></div><h1>AbstractCommandLineApplication.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.cli;
+
+import java.util.List;
+import javax.annotation.Nonnull;
+import com.google.common.base.Throwables;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.lang3.ArrayUtils;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Bean;
+
+/**
+ * Base class for Spring Boot applications that have command line options.
+ * @author Keivan Khalichi
+ * @see AbstractCommandLineApplication#commandLineRunner(ConfigurableApplicationContext)
+ */
+<span class="nc" id="L36">@Slf4j</span>
+<span class="nc" id="L37">public abstract class AbstractCommandLineApplication {</span>
+
+<span class="nc" id="L39">   protected static final Option DAEMON = noArgsOption(&quot;dm&quot;, &quot;daemon&quot;, &quot;run as daemon (i.e. does not terminate)&quot;);</span>
+
+<span class="nc" id="L41">   private final Options     options = new Options();</span>
+   private       CommandLine commandLine;
+
+   protected static Option requiredWithArgsOption(@Nonnull final String shortOption, final String longOption, final String description) {
+<span class="nc" id="L45">      return option(shortOption, longOption, true, true, description);</span>
+   }
+
+   protected static Option requiredNoArgsOption(@Nonnull final String shortOption, final String longOption, final String description) {
+<span class="nc" id="L49">      return option(shortOption, longOption, true, false, description);</span>
+   }
+
+   protected static Option withArgsOption(@Nonnull final String shortOption, final String longOption, final String description) {
+<span class="nc" id="L53">      return option(shortOption, longOption, false, true, description);</span>
+   }
+
+   protected static Option noArgsOption(@Nonnull final String shortOption, final String longOption, final String description) {
+<span class="nc" id="L57">      return option(shortOption, longOption, false, false, description);</span>
+   }
+
+   protected static Option option(@Nonnull final String shortOption, final String longOption, final boolean required, final boolean hasArgs,
+                                  final String description) {
+<span class="nc" id="L62">      return Option.builder(shortOption).longOpt(longOption).required(required).hasArg(hasArgs).desc(description).build();</span>
+   }
+
+   protected abstract List&lt;Option&gt; options();
+
+   protected abstract void run() throws CommandLineApplicationException;
+
+   @SuppressWarnings(&quot;VariableArgumentMethod&quot;)
+   void init(final String... theArgs) throws ParseException {
+<span class="nc" id="L71">      this.options().forEach(this.options::addOption);</span>
+<span class="nc" id="L72">      this.commandLine = new DefaultParser().parse(this.options, theArgs);</span>
+<span class="nc" id="L73">   }</span>
+
+   protected String optionValue(@Nonnull final String theOption) {
+<span class="nc" id="L76">      return this.commandLine.getOptionValue(theOption);</span>
+   }
+
+   protected String optionValue(@Nonnull final Option theOption) {
+<span class="nc" id="L80">      return this.commandLine.getOptionValue(theOption.getOpt());</span>
+   }
+
+   protected boolean hasOption(@Nonnull final String theOption) {
+<span class="nc" id="L84">      return this.commandLine.hasOption(theOption);</span>
+   }
+
+   protected boolean hasOption(@Nonnull final Option theOption) {
+<span class="nc" id="L88">      return this.commandLine.hasOption(theOption.getOpt());</span>
+   }
+
+   /**
+    * Creates a bean that checks if a there are command-line arguments, and if so, initializes the class and runs the {@link #run()} abstract method.  Unless
+    * the command-line option {@code -dnt} (or {@code --do-not-terminate}) is present explicitly, upon completion of the {@link #run()} method,
+    * the Spring application will terminate.
+    * @param theContext the application context
+    * @return an instance of Spring command-line runner
+    */
+   @Bean
+   CommandLineRunner commandLineRunner(ConfigurableApplicationContext theContext) {
+<span class="nc" id="L100">      return args -&gt; {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">         if (ArrayUtils.isNotEmpty(args)) {</span>
+<span class="nc" id="L102">            log.debug(&quot;Command line: {}&quot;, (Object) args);</span>
+            try {
+<span class="nc" id="L104">               this.init(args);</span>
+<span class="nc" id="L105">               this.run();</span>
+            }
+<span class="nc" id="L107">            catch (ParseException | NumberFormatException e) {</span>
+<span class="nc" id="L108">               final var aFormatter = new HelpFormatter();</span>
+<span class="nc" id="L109">               aFormatter.printHelp(120, this.getClass().getSimpleName(), &quot;\noptions:\n\n&quot;, this.options, null, true);</span>
+            }
+<span class="nc" id="L111">            catch (CommandLineApplicationException e) {</span>
+<span class="nc" id="L112">               log.error(&quot;Error running command-line application; error code: {}; message: {}&quot;,</span>
+<span class="nc" id="L113">                         e.getErrorCode().asString(), Throwables.getRootCause(e).getMessage());</span>
+            }
+            finally {
+<span class="nc bnc" id="L116" title="All 2 branches missed.">               if (!this.hasOption(DAEMON)) {</span>
+<span class="nc" id="L117">                  theContext.close();</span>
+               }
+            }
+         }
+<span class="nc" id="L121">      };</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

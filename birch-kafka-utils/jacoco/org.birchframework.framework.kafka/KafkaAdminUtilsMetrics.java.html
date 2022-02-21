@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KafkaAdminUtilsMetrics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-kafka-utils</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.kafka</a> &gt; <span class="el_source">KafkaAdminUtilsMetrics.java</span></div><h1>KafkaAdminUtilsMetrics.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.kafka;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.util.CollectionUtils;
+
+import static lombok.AccessLevel.PACKAGE;
+
+/**
+ * {@link KafkaAdminUtils} metrics bean that obtains and publishes Kafka metrics supplied by the utility class, to Micrometer.  Registers metrics upon startup
+ * and re-registers them at configurable intervals.  Samples metrics upon startup and at configurable intervals.
+ * &lt;p/&gt;
+ * Configurations are as follows:
+ * &lt;pre&gt;
+ * birch:
+ *   kafka:
+ *     admin:
+ *       sample-interval-ms: 5_000              # Scheduled milliseconds interval of sampling consumer lags; defaults to every 5 seconds
+ *       re-register-interval-ms: 21_600_000    # Scheduled milliseconds interval of gauge re-registration in order to tag any new topics; defaults to every 6 hours
+ * &lt;/pre&gt;
+ * @author Keivan Khalichi
+ */
+<span class="fc" id="L41">@RequiredArgsConstructor(access = PACKAGE)</span>
+<span class="fc" id="L42">@Slf4j</span>
+public class KafkaAdminUtilsMetrics {
+
+   private final KafkaAdminUtils    kafkaAdminUtils;
+   private final MeterRegistry      meterRegistry;
+<span class="fc" id="L47">   private final Map&lt;String, Long&gt;  topicLags = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L48">   private final Map&lt;String, Gauge&gt; gauges    = new ConcurrentHashMap&lt;&gt;();</span>
+
+   /**
+    * Updated topic consumer lags on schedule.
+    */
+   @Scheduled(fixedRateString = &quot;#{${birch.kafka.admin.sample-interval-ms:} ?: T(java.time.Duration).ofSeconds(5).toMillis()}&quot;)
+   void sampleGauges() {
+<span class="fc" id="L55">      this.kafkaAdminUtils.topicLags().entrySet().stream()</span>
+<span class="pc bnc" id="L56" title="All 2 branches missed.">                                                 .filter(e -&gt; !e.getKey().startsWith(&quot;_&quot;))</span>
+<span class="pc" id="L57">                                                 .forEach(e -&gt; this.topicLags.put(e.getKey(), e.getValue()));</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">      if (log.isDebugEnabled()) {</span>
+<span class="nc" id="L59">         log.debug(&quot;Sampled gauges from data: {}&quot;, this.topicLags);</span>
+      }
+<span class="fc" id="L61">   }</span>
+
+   /**
+    * Re-registers gauges from the latest topic lags sampling.  This is done so that new topics are picked up.
+    */
+   @Scheduled(initialDelay = 2_000, fixedRateString = &quot;#{${birch.kafka.admin.re-register-interval-ms:} ?: T(java.time.Duration).ofHours(6).toMillis()}&quot;)
+   void registerGauges() {
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">      if (!CollectionUtils.isEmpty(this.gauges)) {</span>
+<span class="nc" id="L69">         this.gauges.forEach((topic, gauge) -&gt; this.meterRegistry.remove(gauge.getId()));</span>
+<span class="nc" id="L70">         this.gauges.clear();</span>
+      }
+<span class="fc" id="L72">      this.topicLags.forEach((topic, lag) -&gt; {</span>
+<span class="nc" id="L73">         final var aGauge = Gauge.builder(&quot;birch.kafka.consumer.lag&quot;, () -&gt; this.topicLags.get(topic))</span>
+<span class="nc" id="L74">                                 .description(String.format(&quot;%s consumer lag&quot;, topic))</span>
+<span class="nc" id="L75">                                 .tag(&quot;topic&quot;, topic)</span>
+<span class="nc" id="L76">                                 .register(this.meterRegistry);</span>
+<span class="nc" id="L77">         log.info(&quot;Registered consumer lag gauge: {}&quot;, aGauge.getId());</span>
+<span class="nc" id="L78">         this.gauges.put(topic, aGauge);</span>
+<span class="nc" id="L79">      });</span>
+<span class="fc" id="L80">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

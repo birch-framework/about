@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JMSMessageMarshaller.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.text.jms</a> &gt; <span class="el_source">JMSMessageMarshaller.java</span></div><h1>JMSMessageMarshaller.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+
+package org.birchframework.framework.text.jms;
+
+import java.util.Properties;
+import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
+
+import static org.birchframework.dto.BirchErrorCode.*;
+
+/**
+ * (De)serializer of JMS messages.  The payload must adhere to a particular format.
+ * @author Keivan Khalichi
+ */
+<span class="nc" id="L27">public class JMSMessageMarshaller {</span>
+
+<span class="fc" id="L29">   private static final Pattern fullMessagePattern = Pattern.compile(&quot;.*\\$Properties:(.*)\\$TextBody:(.*)&quot;, Pattern.DOTALL);</span>
+<span class="fc" id="L30">   private static final Pattern propertyPattern    = Pattern.compile(&quot;^(.*)=(.*):(.*)$&quot;, Pattern.DOTALL);</span>
+
+   @SuppressWarnings(&quot;AutoBoxing&quot;)
+   public static JMSMessage deserialize(final String theJMSMessageString) {
+<span class="fc bfc" id="L34" title="All 2 branches covered.">      if (StringUtils.isBlank(theJMSMessageString)) {</span>
+<span class="fc" id="L35">         throw new JMSMessageMarshallerException(B12100);</span>
+      }
+<span class="fc" id="L37">      final var aFullMessageMatcher = fullMessagePattern.matcher(theJMSMessageString);</span>
+<span class="fc" id="L38">      final var aProperties = new Properties();</span>
+      final String aTextBody;
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">      if (aFullMessageMatcher.matches()) {</span>
+<span class="fc" id="L41">         final var aPropertiesString = aFullMessageMatcher.group(1).strip();</span>
+<span class="fc" id="L42">         aTextBody = aFullMessageMatcher.group(2).strip();</span>
+<span class="fc" id="L43">         aPropertiesString.lines().map(String::strip).forEach(line -&gt; {</span>
+<span class="fc" id="L44">            final var aPropertyMatcher = propertyPattern.matcher(line);</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">            if (aPropertyMatcher.matches()) {</span>
+<span class="fc" id="L46">               final var aPropertyKey = aPropertyMatcher.group(1).strip();</span>
+<span class="fc" id="L47">               final var aPropertyType = aPropertyMatcher.group(2).strip();</span>
+<span class="fc" id="L48">               final var aPropertyValue = aPropertyMatcher.group(3).strip();</span>
+               final Object aValue;
+<span class="fc bfc" id="L50" title="All 7 branches covered.">               switch (aPropertyType) {</span>
+                  case &quot;String&quot;:
+<span class="fc" id="L52">                     aValue = aPropertyValue;</span>
+<span class="fc" id="L53">                     break;</span>
+                  case &quot;Boolean&quot;:
+<span class="fc" id="L55">                     aValue = Boolean.valueOf(aPropertyValue);</span>
+<span class="fc" id="L56">                     break;</span>
+                  case &quot;Long&quot;:
+<span class="fc" id="L58">                     aValue = Long.valueOf(aPropertyValue);</span>
+<span class="fc" id="L59">                     break;</span>
+                  case &quot;Integer&quot;:
+<span class="fc" id="L61">                     aValue = Integer.valueOf(aPropertyValue);</span>
+<span class="fc" id="L62">                     break;</span>
+                  case &quot;Short&quot;:
+<span class="fc" id="L64">                     aValue = Short.valueOf(aPropertyValue);</span>
+<span class="fc" id="L65">                     break;</span>
+                  case &quot;Character&quot;:
+<span class="fc" id="L67">                     aValue = aPropertyValue.charAt(0);</span>
+<span class="fc" id="L68">                     break;</span>
+                  default:
+<span class="fc" id="L70">                     aValue = null;</span>
+               }
+<span class="fc bfc" id="L72" title="All 2 branches covered.">               if (aValue != null) {</span>
+<span class="fc" id="L73">                  aProperties.put(aPropertyKey, aValue);</span>
+               }
+            }
+<span class="fc" id="L76">         });</span>
+<span class="fc" id="L77">      }</span>
+      else {
+<span class="nc" id="L79">         throw new JMSMessageMarshallerException(B12110);</span>
+      }
+<span class="fc" id="L81">      return new JMSMessage(aProperties, aTextBody);</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SpanningContainerRequestFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-rest-jaxrs</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.i18n</a> &gt; <span class="el_source">SpanningContainerRequestFilter.java</span></div><h1>SpanningContainerRequestFilter.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.i18n;
+
+import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerRequestFilter;
+import javax.ws.rs.ext.Provider;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.LocaleUtils;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.MDC;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.i18n.LocaleContextHolder;
+
+import static org.birchframework.framework.i18n.SpanHeadersContainer.*;
+import static javax.ws.rs.core.HttpHeaders.CONTENT_LANGUAGE;
+
+/**
+ * CXF filter that pulls {@link SpanHeadersContainer} from the request on the service side and makes it available to the thread.
+ * @author Keivan Khalichi
+ */
+@Provider
+<span class="fc" id="L42">@Slf4j</span>
+<span class="fc" id="L43">public class SpanningContainerRequestFilter implements ContainerRequestFilter {</span>
+
+<span class="fc" id="L45">   private static final Pattern localePattern = Pattern.compile(&quot;.*([a-z]{2}[-_][A-Z]{2}).*&quot;);</span>
+
+   @Resource
+   private ApplicationContext       context;
+   @SuppressWarnings(&quot;InstanceVariableMayNotBeInitialized&quot;)
+   private SpanHeadersContainerBean spanHeadersContainer;
+   @Value(&quot;${spring.mvc.locale:en_US}&quot;)
+   private String                   defaultLocale;
+
+   @PostConstruct
+   void init() {
+<span class="nc" id="L56">      log.info(&quot;Default locale: {}&quot;, this.defaultLocale);</span>
+      try {
+<span class="nc" id="L58">         this.spanHeadersContainer = this.context.getBean(SpanHeadersContainerBean.class);</span>
+      }
+<span class="nc" id="L60">      catch (NoSuchBeanDefinitionException e) {</span>
+<span class="nc" id="L61">         log.info(&quot;Span headers container bean was not found&quot;);</span>
+<span class="nc" id="L62">      }</span>
+<span class="nc" id="L63">   }</span>
+
+   @Override
+   public void filter(final ContainerRequestContext theRequestContext) {
+<span class="pc bpc" id="L67" title="1 of 4 branches missed.">      if (this.spanHeadersContainer != null &amp;&amp; !this.spanHeadersContainer.hasData()) {</span>
+<span class="fc" id="L68">         final var aHeaders = theRequestContext.getHeaders();</span>
+
+         final String aLocale;
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">         if (aHeaders.containsKey(LOCALE_HEADER)) {</span>
+<span class="fc" id="L72">            final var aLocaleHeaderValues = aHeaders.get(LOCALE_HEADER).stream().filter(StringUtils::isNotBlank).collect(Collectors.joining(&quot;|&quot;));</span>
+<span class="fc" id="L73">            log.debug(&quot;Found {}: {}&quot;, LOCALE_HEADER, aLocaleHeaderValues);</span>
+<span class="fc" id="L74">            aLocale = this.parseLocale(aLocaleHeaderValues);</span>
+<span class="fc" id="L75">         }</span>
+         else {
+<span class="nc" id="L77">            final var aContentLanguage = theRequestContext.getLanguage();</span>
+<span class="nc" id="L78">            log.debug(&quot;Did not find {}; attempting using {}: {}&quot;, LOCALE_HEADER, CONTENT_LANGUAGE, aContentLanguage);</span>
+<span class="nc" id="L79">            final var aRequestLanguage = ObjectUtils.defaultIfNull(aContentLanguage, LocaleContextHolder.getLocale());</span>
+<span class="nc" id="L80">            aLocale = this.parseLocale(aRequestLanguage.toString());</span>
+         }
+<span class="fc" id="L82">         log.debug(&quot;Locale context is being set to: {}&quot;, aLocale);</span>
+<span class="fc" id="L83">         LocaleContextHolder.setLocale(LocaleUtils.toLocale(aLocale));</span>
+
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">         final String aCorrelationID = aHeaders.containsKey(CORRELATION_ID_HEADER) ? aHeaders.getFirst(CORRELATION_ID_HEADER) : UUID.randomUUID().toString();</span>
+<span class="fc" id="L86">         log.debug(&quot;Correlation ID: {}&quot;, aCorrelationID);</span>
+
+<span class="fc" id="L88">         this.spanHeadersContainer.setLocale(aLocale);</span>
+<span class="fc" id="L89">         this.spanHeadersContainer.setCorrelationID(aCorrelationID);</span>
+<span class="fc" id="L90">         MDC.put(CORRELATION_ID_HEADER, aCorrelationID);</span>
+      }
+<span class="fc" id="L92">   }</span>
+
+   private String parseLocale(final String theHeaderValue) {
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">      if (StringUtils.equals(&quot;null&quot;, theHeaderValue)) {</span>
+<span class="nc" id="L96">         return this.defaultLocale;</span>
+      }
+<span class="fc" id="L98">      final var aMatcher = localePattern.matcher(theHeaderValue);</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">      return aMatcher.matches()</span>
+<span class="fc" id="L100">           ? aMatcher.group(1).replaceAll(&quot;-&quot;, &quot;_&quot;)</span>
+<span class="nc" id="L101">           : this.defaultLocale;</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

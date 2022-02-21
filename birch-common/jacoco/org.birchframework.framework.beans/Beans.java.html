@@ -1,0 +1,388 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Beans.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.beans</a> &gt; <span class="el_source">Beans.java</span></div><h1>Beans.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.beans;
+
+import java.lang.StackWalker.StackFrame;
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Stream;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import ma.glasnost.orika.BoundMapperFacade;
+import ma.glasnost.orika.MapperFactory;
+import ma.glasnost.orika.impl.DefaultMapperFactory;
+import ma.glasnost.orika.metadata.ClassMapBuilder;
+import org.apache.commons.lang3.BooleanUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.reflect.ConstructorUtils;
+import org.birchframework.dto.ErrorCode;
+import org.birchframework.framework.spring.SpringContext;
+import org.checkerframework.checker.regex.qual.Regex;
+import org.reflections.Configuration;
+import org.reflections.Reflections;
+import org.reflections.scanners.SubTypesScanner;
+import org.reflections.util.ClasspathHelper;
+import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.FilterBuilder;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+
+import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
+import static lombok.AccessLevel.PRIVATE;
+
+/**
+ * Bean utilities.
+ * @author Keivan Khalichi
+ */
+@NoArgsConstructor(access = PRIVATE)
+@SuppressWarnings({&quot;VariableArgumentMethod&quot;, &quot;unused&quot;, &quot;WeakerAccess&quot;, &quot;AutoBoxing&quot;})
+<span class="fc" id="L56">@Slf4j</span>
+public class Beans {
+
+   /** Depth of base packages to scan for {@link ErrorCode} implementation */
+   public static final int    DEFAULT_BASE_PACKAGE_DEPTH    = 2;
+   @Regex(1)
+   public static final String DEFAULT_IGNORED_BASE_PACKAGES =
+      &quot;(java|javax|org\\.birchframework|org\\.apache|org\\.springframework|lombok|com\\.sun|com\\.google|org\\.junit|com\\.intellij|org\\.jetbrains|org\\.eclipse).*&quot;;
+
+<span class="fc" id="L65">   private static final String[]      DEFAULT_IGNORED_BASE_PACKAGES_ARRAY = DEFAULT_IGNORED_BASE_PACKAGES.replaceAll(&quot;\\(|\\)|\\\\|\\.\\*&quot;, &quot;&quot;).split(&quot;\\|&quot;);</span>
+   private static final Configuration defaultExcludedBasePackagesConfig;
+<span class="fc" id="L67">   private static final MapperFactory mapperFactory                       = new DefaultMapperFactory.Builder().build();</span>
+
+   static {
+<span class="fc" id="L70">      final var aFilterBuilder = new FilterBuilder().exclude(DEFAULT_IGNORED_BASE_PACKAGES);</span>
+<span class="fc" id="L71">      defaultExcludedBasePackagesConfig = new ConfigurationBuilder().filterInputsBy(aFilterBuilder);</span>
+<span class="fc" id="L72">   }</span>
+
+   /**
+    * Registers a default mapping to the provided model class from its superclass (class --&amp;gt; superclass).  The superclass must be a class other
+    * than {@link Object}.
+    * @param theModelClass the model class
+    * @param theMapNulls map null values in superclass instance to the subclass instance
+    * @param theIgnoredProperties ignored property names while mapping
+    * @param &lt;T&gt; type of the subclass (i.e. the model class)
+    * @throws RuntimeException if the superclass is {@link Object}
+    */
+   public static &lt;T&gt; void registerMapping (@Nonnull final Class&lt;T&gt; theModelClass, final boolean theMapNulls, final String... theIgnoredProperties) {
+<span class="nc" id="L84">      final var aSuperclass = theModelClass.getSuperclass();</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">      if (aSuperclass == Object.class) {</span>
+<span class="nc" id="L86">         throw new RuntimeException(String.format(</span>
+            &quot;%s applied to a class for which the superclass is %s; superclass must be a DTO&quot;,
+<span class="nc" id="L88">            MappingModel.class.getName(),</span>
+<span class="nc" id="L89">            Object.class.getName()</span>
+         ));
+      }
+<span class="nc" id="L92">      registerMapping(aSuperclass, theModelClass, theMapNulls, theIgnoredProperties);</span>
+<span class="nc" id="L93">   }</span>
+
+   /**
+    * Registers a default mapping between a source class and a target class.
+    * @param theA the source class
+    * @param theB the target class
+    * @param theMapNulls map null values in superclass instance to the subclass instance
+    * @param theExcludedProperties property names excluded from mapping
+    * @param &lt;A&gt; type of the source
+    * @param &lt;B&gt; type of the target
+    */
+   public static &lt;A,B&gt; void registerMapping(@Nonnull final Class&lt;A&gt; theA, @Nonnull final Class&lt;B&gt; theB,
+                                            final boolean theMapNulls, final String... theExcludedProperties) {
+<span class="nc" id="L106">      final ClassMapBuilder&lt;A, B&gt; aClassMapBuilder = mapperFactory.classMap(theA, theB).mapNulls(theMapNulls).mapNullsInReverse(theMapNulls);</span>
+<span class="nc" id="L107">      Stream.of(theExcludedProperties).forEach(aClassMapBuilder::exclude);</span>
+<span class="nc" id="L108">      aClassMapBuilder.byDefault().register();</span>
+<span class="nc" id="L109">   }</span>
+
+   /**
+    * Maps properties from the source object to an instance of the target class that is created.
+    * @param theSource the source object
+    * @param theTargetClass the target class
+    * @param &lt;S&gt; type of the source object
+    * @param &lt;T&gt; type of the target class
+    * @return instance of target class
+    */
+   @SuppressWarnings(&quot;unchecked&quot;)
+   public static &lt;S,T&gt; T mapProperties(@Nonnull final S theSource, @Nonnull final Class&lt;T&gt; theTargetClass) {
+<span class="fc" id="L121">      final var aBoundMapper = (BoundMapperFacade&lt;S, T&gt;) mapperFactory.getMapperFacade(theSource.getClass(), theTargetClass);</span>
+<span class="fc" id="L122">      return aBoundMapper.map(theSource);</span>
+   }
+
+   /**
+    * Maps properties in reverse, that is from the target object to an instance of the source class that is created.
+    * @param theSourceClass the source class
+    * @param theTarget the target object
+    * @param &lt;S&gt; type of the source object
+    * @param &lt;T&gt; type of the target class
+    * @return instance of source class
+    */
+   @SuppressWarnings(&quot;unchecked&quot;)
+   public static &lt;S,T&gt; S mapPropertiesReverse(@Nonnull final Class&lt;S&gt; theSourceClass, @Nonnull final T theTarget) {
+<span class="nc" id="L135">      final var aBoundMapper = (BoundMapperFacade&lt;S, T&gt;) mapperFactory.getMapperFacade(theSourceClass, theTarget.getClass());</span>
+<span class="nc" id="L136">      return aBoundMapper.mapReverse(theTarget);</span>
+   }
+
+   /**
+    * Maps properties from a source object to a target object.
+    * @param theSource the source object
+    * @param theTarget the target object
+    * @param &lt;S&gt; type of the source object
+    * @param &lt;T&gt; type of the target object
+    * @return a reference to the target object is passed as parameter
+    */
+   @SuppressWarnings(&quot;unchecked&quot;)
+   public static &lt;S,T&gt; T mapProperties(@Nonnull final S theSource, @Nonnull final T theTarget) {
+<span class="fc" id="L149">      final var aBoundMapper = (BoundMapperFacade&lt;S, T&gt;) mapperFactory.getMapperFacade(theSource.getClass(), theTarget.getClass());</span>
+<span class="fc" id="L150">      return aBoundMapper.map(theSource, theTarget);</span>
+   }
+
+   /**
+    * Maps properties in reverse, that is from the target object to the source object.
+    * @param theSource the source object
+    * @param theTarget the target object
+    * @param &lt;S&gt; type of the source object
+    * @param &lt;T&gt; type of the target object
+    * @return a reference to the source object that is passed as parameter
+    */
+   @SuppressWarnings(&quot;unchecked&quot;)
+   public static &lt;S,T&gt; S mapPropertiesReverse(@Nonnull final S theSource, @Nonnull final T theTarget) {
+<span class="nc" id="L163">      final var aBoundMapper = (BoundMapperFacade&lt;S, T&gt;) mapperFactory.getMapperFacade(theSource.getClass(), theTarget.getClass());</span>
+<span class="nc" id="L164">      return aBoundMapper.mapReverse(theTarget, theSource);</span>
+   }
+
+   /**
+    * Maps properties from a source object to a target object, but does not used a pre-registered mapping factory.  This method is
+    * &lt;emphasis&gt;quite inefficient&lt;/emphasis&gt;, nevertheless provided for cases wherein the excluded properties are only known at runtime (as opposed to at
+    * build time).  Also, this version of the overloaded method does not return a reference to the target object, which implies the target must not be null.
+    * @param theSource the source object
+    * @param theTarget the target object
+    * @param &lt;S&gt; type of the source object
+    * @param &lt;T&gt; type of the target object
+    */
+   public static &lt;S,T&gt; void mapProperties(@Nonnull final S theSource, @Nonnull final T theTarget, final boolean theMapNulls,
+                                          final String... theExcludedProperties) {
+<span class="fc" id="L178">      final var aMapperFactory = new DefaultMapperFactory.Builder().mapNulls(theMapNulls).build();</span>
+<span class="fc" id="L179">      final var aClassMap = aMapperFactory.classMap(theSource.getClass(), theTarget.getClass());</span>
+<span class="fc" id="L180">      Stream.of(theExcludedProperties).forEach(aClassMap::exclude);</span>
+<span class="fc" id="L181">      aClassMap.byDefault().register();</span>
+<span class="fc" id="L182">      aMapperFactory.getMapperFacade().map(theSource, theTarget);</span>
+<span class="fc" id="L183">   }</span>
+
+   /**
+    * Converts a string value to its scalar or enumerated value equivalent based on the specified target type.  If the target type is
+    * String, then the specified string value parameter is returned.
+    * @param theTargetType the target type
+    * @param theStringValue the value in string format
+    * @return the wrapped object equivalent of the scalar, a String, or Enum value
+    */
+   @SuppressWarnings(&quot;unchecked&quot;)
+   public static &lt;T&gt; Object valueOf(@Nonnull final Class&lt;T&gt; theTargetType, @Nonnull final String theStringValue) {
+<span class="fc bfc" id="L194" title="All 2 branches covered.">      if (String.class.isAssignableFrom(theTargetType)) {</span>
+<span class="fc" id="L195">         return theStringValue;</span>
+      }
+<span class="pc bpc" id="L197" title="1 of 4 branches missed.">      else if (int.class.isAssignableFrom(theTargetType) || Integer.class.isAssignableFrom(theTargetType)) {</span>
+<span class="fc" id="L198">         return Integer.valueOf(theStringValue);</span>
+      }
+<span class="pc bpc" id="L200" title="1 of 4 branches missed.">      else if (boolean.class.isAssignableFrom(theTargetType) || Boolean.class.isAssignableFrom(theTargetType)) {</span>
+<span class="fc" id="L201">         return BooleanUtils.toBoolean(theStringValue);</span>
+      }
+<span class="pc bpc" id="L203" title="1 of 4 branches missed.">      else if (long.class.isAssignableFrom(theTargetType) || Long.class.isAssignableFrom(theTargetType)) {</span>
+<span class="fc" id="L204">         return Long.valueOf(theStringValue);</span>
+      }
+<span class="pc bpc" id="L206" title="1 of 4 branches missed.">      else if (double.class.isAssignableFrom(theTargetType) || Double.class.isAssignableFrom(theTargetType)) {</span>
+<span class="fc" id="L207">         return Double.valueOf(theStringValue);</span>
+      }
+<span class="pc bpc" id="L209" title="1 of 4 branches missed.">      else if (char.class.isAssignableFrom(theTargetType) || Character.class.isAssignableFrom(theTargetType)) {</span>
+<span class="fc" id="L210">         return theStringValue.charAt(0);</span>
+      }
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">      else if (Enum.class.isAssignableFrom(theTargetType)) {</span>
+<span class="fc" id="L213">         final var aValue = theStringValue.replaceAll(&quot;-&quot;, &quot;_&quot;);</span>
+<span class="fc" id="L214">         return Stream.of(((Class&lt;Enum&lt;?&gt;&gt;) theTargetType).getEnumConstants()).filter(value -&gt; value.name().equalsIgnoreCase(aValue)).findFirst().orElse(null);</span>
+      }
+<span class="nc bnc" id="L216" title="All 4 branches missed.">      else if (float.class.isAssignableFrom(theTargetType) || Float.class.isAssignableFrom(theTargetType)) {</span>
+<span class="nc" id="L217">         return Float.valueOf(theStringValue);</span>
+      }
+<span class="nc bnc" id="L219" title="All 4 branches missed.">      else if (byte.class.isAssignableFrom(theTargetType) || Byte.class.isAssignableFrom(theTargetType)) {</span>
+<span class="nc" id="L220">         return Byte.valueOf(theStringValue);</span>
+      }
+<span class="nc bnc" id="L222" title="All 4 branches missed.">      else if (short.class.isAssignableFrom(theTargetType) || Short.class.isAssignableFrom(theTargetType)) {</span>
+<span class="nc" id="L223">         return Short.valueOf(theStringValue);</span>
+      }
+<span class="nc" id="L225">      return null;</span>
+   }
+
+   public static &lt;T&gt; Optional&lt;Class&lt;? extends T&gt;&gt; findImplementation(final Class&lt;T&gt; theInterface, final Class&lt;?&gt;... theExcludeClasses) {
+<span class="fc" id="L229">      return findImplementation(null, theInterface, DEFAULT_BASE_PACKAGE_DEPTH, theExcludeClasses);</span>
+   }
+
+   public static &lt;T&gt; Optional&lt;Class&lt;? extends T&gt;&gt; findImplementation(final StackWalker theStackWalker, final Class&lt;T&gt; theInterface,
+                                                                     final Class&lt;?&gt;... theExcludeClasses) {
+<span class="nc" id="L234">      return findImplementation(theStackWalker, theInterface, DEFAULT_BASE_PACKAGE_DEPTH, theExcludeClasses);</span>
+   }
+
+   @SuppressWarnings(&quot;unchecked&quot;)
+   public static &lt;T&gt; Optional&lt;Class&lt;? extends T&gt;&gt; findImplementation(@Nullable final StackWalker theStackWalker, @Nonnull final Class&lt;T&gt; theInterface,
+                                                                     final int theBasePackageDepth, final Class&lt;?&gt;... theExcludeClasses) {
+<span class="fc" id="L240">      final var aCallerClass = findCallerClass(theStackWalker, DEFAULT_IGNORED_BASE_PACKAGES);</span>
+      final Class&lt;T&gt; anImplementation;
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">      if (aCallerClass.isEmpty()) {</span>
+<span class="nc" id="L243">         anImplementation = null;</span>
+      }
+      else {
+<span class="fc" id="L246">         final var aBasePackage = computeBasePackageName(aCallerClass.get(), theBasePackageDepth);</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">         if (StringUtils.isBlank(aBasePackage)) {</span>
+<span class="nc" id="L248">            anImplementation = null;</span>
+         }
+         else {
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">            final var anExcludeClasses = theExcludeClasses == null ? Collections.&lt;Class&lt;?&gt;&gt;emptyList() : Arrays.asList(theExcludeClasses);</span>
+<span class="fc" id="L252">            final var aFilterBuilder = new FilterBuilder().includePackage(aBasePackage).exclude(DEFAULT_IGNORED_BASE_PACKAGES);</span>
+<span class="fc" id="L253">            final var aConfigBuilder = new ConfigurationBuilder().addUrls(ClasspathHelper.forPackage(aBasePackage))</span>
+<span class="fc" id="L254">                                                                 .filterInputsBy(aFilterBuilder)</span>
+<span class="fc" id="L255">                                                                 .setScanners(new SubTypesScanner());</span>
+<span class="fc" id="L256">            anImplementation = (Class&lt;T&gt;) new Reflections(aConfigBuilder).getSubTypesOf(theInterface)</span>
+<span class="fc" id="L257">                                                                         .stream()</span>
+<span class="fc" id="L258">                                                                         .filter(c -&gt; anExcludeClasses.stream().noneMatch(ec -&gt; ec.isAssignableFrom(c)))</span>
+<span class="fc" id="L259">                                                                         .findFirst()</span>
+<span class="fc" id="L260">                                                                         .orElse(null);</span>
+         }
+      }
+<span class="fc" id="L263">      return Optional.ofNullable(anImplementation);</span>
+   }
+
+   public static Optional&lt;Class&lt;?&gt;&gt; findCallerClass() {
+<span class="nc" id="L267">      return findCallerClass(null, null);</span>
+   }
+
+   public static Optional&lt;Class&lt;?&gt;&gt; findCallerClass(final String theIgnoredBasePackages) {
+<span class="nc" id="L271">      return findCallerClass(null, theIgnoredBasePackages);</span>
+   }
+
+   public static Optional&lt;Class&lt;?&gt;&gt; findCallerClass(@Nullable final StackWalker theStackWalker, @Regex final String theIgnoredBasePackages) {
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">      final var aStackWalker = theStackWalker == null ? StackWalker.getInstance(RETAIN_CLASS_REFERENCE) : theStackWalker;</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">      final var anIgnoredBasePackages = StringUtils.isBlank(theIgnoredBasePackages) ? DEFAULT_IGNORED_BASE_PACKAGES : theIgnoredBasePackages;</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">      return aStackWalker.walk(frames -&gt; frames.filter(e -&gt; !e.getClassName().matches(anIgnoredBasePackages)).findFirst().map(StackFrame::getDeclaringClass));</span>
+   }
+
+   public static Set&lt;Class&lt;?&gt;&gt; classesAnnotatedWith(final Class&lt;? extends Annotation&gt; theAnnotationClass) {
+<span class="nc" id="L281">      final var aCallerClass = findCallerClass();</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">      if (aCallerClass.isEmpty()) {</span>
+<span class="nc" id="L283">         return Collections.emptySet();</span>
+      }
+      else {
+<span class="nc" id="L286">         final var aBasePackage = computeBasePackageName(aCallerClass.get(), DEFAULT_BASE_PACKAGE_DEPTH);</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">         if (StringUtils.isBlank(aBasePackage)) {</span>
+<span class="nc" id="L288">            return Collections.emptySet();</span>
+         }
+         else {
+<span class="nc" id="L291">            final var aConfigBuilder = new ConfigurationBuilder().addUrls(ClasspathHelper.forPackage(aBasePackage))</span>
+<span class="nc" id="L292">                                                                 .filterInputsBy(new FilterBuilder().exclude(DEFAULT_IGNORED_BASE_PACKAGES));</span>
+<span class="nc" id="L293">            final var aReflections = new Reflections(aConfigBuilder);</span>
+<span class="nc" id="L294">            return aReflections.getTypesAnnotatedWith(theAnnotationClass);</span>
+         }
+      }
+   }
+
+   public static Set&lt;Class&lt;?&gt;&gt; classesAnnotatedWith(final Class&lt;? extends Annotation&gt; theAnnotationClass, @Nullable String... theBasePackages) {
+<span class="nc" id="L300">      final var aReflections = new Reflections((Object[]) theBasePackages);</span>
+<span class="nc" id="L301">      return aReflections.getTypesAnnotatedWith(theAnnotationClass);</span>
+   }
+
+   public static String computeBasePackageName(@Nonnull final Class&lt;?&gt; theClass) {
+<span class="nc" id="L305">      return computeBasePackageName(theClass, DEFAULT_BASE_PACKAGE_DEPTH);</span>
+   }
+
+   public static String computeBasePackageName(@Nonnull final Class&lt;?&gt; theClass, final int theDepth) {
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">      if (theDepth &lt;= 0) {</span>
+<span class="nc" id="L310">         throw new AssertionError(&quot;Depth must be greater than 0&quot;);</span>
+      }
+<span class="fc" id="L312">      final var aCallerClassName = theClass.getName();</span>
+<span class="fc" id="L313">      var anIndex = 0;</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">      for (int i = 0; i &lt; theDepth; i++) {</span>
+<span class="fc" id="L315">         anIndex = aCallerClassName.indexOf('.', aCallerClassName.indexOf('.') + anIndex);</span>
+      }
+<span class="fc" id="L317">      return aCallerClassName.substring(0, anIndex);</span>
+   }
+
+   /**
+    * Given a class, attempts to find and return a bean of the provided class type, and if not found, will construct return an instance of that class.
+    * The type must have a public default constructor for the latter case.
+    * @param theClass the class of the type to find bean or create instance
+    * @param &lt;T&gt; the target type
+    * @return null if the parameter is null; an instance otherwise
+    * @throws Exception thrown if the bean is not found and an instance cannot be created
+    */
+   public static &lt;T&gt; T findBeanOrCreateInstance(final Class&lt;T&gt; theClass) throws Exception {
+<span class="nc" id="L329">      return findBeanOrCreateInstance(theClass, new Object[0]);</span>
+   }
+
+   public static &lt;T&gt; T findBeanOrCreateInstance(final Class&lt;T&gt; theClass, @Nullable final Object... theConstructorArgs) throws Exception {
+<span class="nc bnc" id="L333" title="All 2 branches missed.">      if (theClass == null) {</span>
+<span class="nc" id="L334">         return null;</span>
+      }
+      try {
+<span class="nc" id="L337">         var aBean = SpringContext.getBean(theClass);</span>
+<span class="nc bnc" id="L338" title="All 2 branches missed.">         if (aBean == null) {</span>
+<span class="nc" id="L339">            log.info(&quot;SpringContext was not loaded; attempting to create a new instance of {}&quot;, theClass.getName());</span>
+<span class="nc" id="L340">            return ConstructorUtils.invokeConstructor(theClass, theConstructorArgs);</span>
+         }
+<span class="nc" id="L342">         return aBean;</span>
+      }
+<span class="nc" id="L344">      catch (NoSuchBeanDefinitionException e) {</span>
+<span class="nc" id="L345">         log.info(&quot;No bean of type {} found; attempting to create a new instance&quot;, theClass.getName());</span>
+<span class="nc" id="L346">         return ConstructorUtils.invokeConstructor(theClass, theConstructorArgs);</span>
+      }
+   }
+
+   /**
+    * Invokes {@code theConsumer} only if {@code theObject} is not null
+    * @param theObject the object to be tested and consumed by the {@code theConsumer}
+    * @param theConsumer the consumer
+    * @param &lt;T&gt; the datatype of the object being tested and possibly consumed
+    */
+   public static &lt;T&gt; void consumeIfNotNull(final T theObject, final Consumer&lt;T&gt; theConsumer) {
+<span class="nc bnc" id="L357" title="All 2 branches missed.">      if (theObject != null) {</span>
+<span class="nc" id="L358">         theConsumer.accept(theObject);</span>
+      }
+<span class="nc" id="L360">   }</span>
+
+   /**
+    * Invokes {@code theFunction} only if {@code theObject} is not null
+    * @param theObject the object to be tested and consumed by {@code theFunction}
+    * @param theFunction the consumer
+    * @param &lt;T&gt; the datatype of the object being tested and possibly consumed
+    * @param &lt;R&gt; the datatype of the return value resulting from invokation of {@code theFunction}
+    * @return the result of {@code theFunction}, null if {@code theObject} is null
+    */
+   public static &lt;T, R&gt; R invokeIfNotNull(final T theObject, final Function&lt;T, R&gt; theFunction, final R theValueIfNull) {
+<span class="nc bnc" id="L371" title="All 2 branches missed.">      if (theObject == null) {</span>
+<span class="nc" id="L372">         return theValueIfNull;</span>
+      }
+<span class="nc" id="L374">      return theFunction.apply(theObject);</span>
+   }
+
+   /**
+    * Runs {@code theRunnable} only if {@code theCondition} is true
+    * @param theCondition the test condition
+    * @param theRunnable the runnable
+    */
+   public static void runIfTrue(final boolean theCondition, Runnable theRunnable) {
+<span class="nc bnc" id="L383" title="All 2 branches missed.">      if (theCondition) {</span>
+<span class="nc" id="L384">         theRunnable.run();</span>
+      }
+<span class="nc" id="L386">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

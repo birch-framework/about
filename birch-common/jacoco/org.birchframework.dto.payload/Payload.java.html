@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Payload.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.dto.payload</a> &gt; <span class="el_source">Payload.java</span></div><h1>Payload.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+
+package org.birchframework.dto.payload;
+
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.birchframework.framework.regex.ParseException;
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.*;
+import static org.birchframework.dto.BirchErrorCode.B20150;
+
+/**
+ * Abstraction of bridge payloads.  This class has inspiration from Avro, but it is not 100% Avro compliant. Must be specialized in subclass implementations
+ * specific to incoming message payloads.  Subclasses will be the container for source message payloads.
+ * @author Keivan Khalichi
+ */
+@JsonInclude(value = NON_EMPTY, content = NON_NULL)
+<span class="nc" id="L41">@Setter</span>
+@Getter
+@SuppressWarnings(&quot;unused&quot;)
+public class Payload&lt;T extends Serializable&gt; implements Serializable {
+
+<span class="nc" id="L46">   private static final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();</span>
+
+   @JsonProperty
+<span class="nc" id="L49">   private       String                     correlationID;</span>
+   @JsonProperty
+<span class="nc" id="L51">   private       Integer                    deliveryMode;</span>
+   @JsonProperty
+<span class="nc" id="L53">   private       Destination                destination;</span>
+   @JsonProperty
+<span class="nc" id="L55">   private       Destination                replyTo;</span>
+   @JsonProperty
+<span class="nc" id="L57">   private       Long                       expiration;</span>
+   @JsonProperty
+<span class="nc" id="L59">   private       Map&lt;?, ?&gt;                  map;</span>
+   @JsonProperty
+<span class="nc" id="L61">   private       String                     messageID;</span>
+   @JsonProperty
+<span class="nc" id="L63">   private       String                     messageType;</span>
+   @JsonProperty
+<span class="nc" id="L65">   private       Integer                    priority;</span>
+   @JsonProperty
+<span class="nc" id="L67">   private       Boolean                    redelivered;</span>
+   @JsonProperty
+<span class="nc" id="L69">   private       String                     text;</span>
+   @JsonProperty
+<span class="nc" id="L71">   private       Long                       timestamp;</span>
+   @JsonProperty
+<span class="nc" id="L73">   private       String                     type;</span>
+<span class="nc" id="L74">   @JsonProperty</span>
+<span class="nc" id="L75">   private final Map&lt;String, PropertyValue&gt; properties = new HashMap&lt;&gt;();</span>
+
+   @SuppressWarnings(&quot;FieldCanBeLocal&quot;)
+   @JsonIgnore
+<span class="nc" id="L79">   private T body;</span>
+
+   /**
+    * Default constructor.
+    */
+<span class="nc" id="L84">   public Payload() {</span>
+<span class="nc" id="L85">   }</span>
+
+   /**
+    * Constructor that initializes the payload.
+    * @param theBody the message body
+    */
+<span class="nc" id="L91">   public Payload(final T theBody) {</span>
+<span class="nc" id="L92">      this.body = theBody;</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">      if (theBody instanceof String) {</span>
+<span class="nc" id="L94">         this.text = (String) theBody;</span>
+      }
+<span class="nc" id="L96">   }</span>
+
+   /**
+    * Returns a property value by name.
+    * @param thePropertyName the property name
+    * @return the property value
+    */
+   public PropertyValue getProperty(final String thePropertyName) {
+<span class="nc" id="L104">      return this.properties.get(thePropertyName);</span>
+   }
+
+   /**
+    * Sets a property value given its name and value.  Infers value datatype.
+    * @param thePropertyName the property name
+    * @param thePropertyValue the property value
+    */
+   public void setProperty(final String thePropertyName, final PropertyValue thePropertyValue) {
+<span class="nc bnc" id="L113" title="All 2 branches missed.">      if (StringUtils.isNotBlank(thePropertyName)) {</span>
+<span class="nc" id="L114">         this.properties.put(thePropertyName, thePropertyValue);</span>
+      }
+<span class="nc" id="L116">   }</span>
+
+   public Set&lt;String&gt; propertyNames() {
+<span class="nc" id="L119">      return this.properties.keySet();</span>
+   }
+
+   @Override
+   public String toString() {
+      try {
+<span class="nc" id="L125">         return objectMapper.writeValueAsString(this);</span>
+      }
+<span class="nc" id="L127">      catch (JsonProcessingException e) {</span>
+<span class="nc" id="L128">         throw new ParseException(B20150, e);</span>
+      }
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

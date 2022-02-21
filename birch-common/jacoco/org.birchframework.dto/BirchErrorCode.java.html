@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BirchErrorCode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.dto</a> &gt; <span class="el_source">BirchErrorCode.java</span></div><h1>BirchErrorCode.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.dto;
+
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlEnum;
+import javax.xml.bind.annotation.XmlType;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import lombok.Getter;
+import org.birchframework.framework.jackson.ErrorCodeDeserializer;
+import org.springframework.lang.NonNull;
+
+import static org.birchframework.dto.BirchComponent.*;
+import static javax.xml.bind.annotation.XmlAccessType.PROPERTY;
+
+/**
+ * Enumerations representing various error codes and descriptions.
+ * @author Keivan Khalichi
+ */
+<span class="fc" id="L31">@XmlAccessorType(PROPERTY)</span>
+@XmlType(propOrder = {
+        &quot;code&quot;,
+        &quot;component&quot;,
+        &quot;description&quot;
+})
+@XmlEnum
+@JsonDeserialize(using = ErrorCodeDeserializer.class)
+@Getter
+public enum BirchErrorCode implements ErrorCode&lt;BirchErrorCode&gt; {
+   // Common
+<span class="fc" id="L42">   B10120(COMMON, &quot;Exception stubbing data&quot;),</span>
+<span class="fc" id="L43">   B10030(COMMON, &quot;Unable to find implementation&quot;),</span>
+
+<span class="fc" id="L45">   B12000(PARSER, &quot;Parser not configured properly&quot;),</span>
+<span class="fc" id="L46">   B12010(PARSER, &quot;Parse types list is empty&quot;),</span>
+<span class="fc" id="L47">   B12020(PARSER, &quot;Input is null or blank&quot;),</span>
+<span class="fc" id="L48">   B12025(PARSER, &quot;The stream of input values must not be a parallel stream&quot;),</span>
+<span class="fc" id="L49">   B12030(PARSER, &quot;Error setting value of capture group&quot;),</span>
+<span class="fc" id="L50">   B12040(PARSER, &quot;Duplicate capture groups defined in the target class&quot;),</span>
+<span class="fc" id="L51">   B12045(PARSER, &quot;Invalid regular expression definition and/or number of capture groups&quot;),</span>
+<span class="fc" id="L52">   B12100(PARSER, &quot;JMS message to be parsed in null or blank&quot;),</span>
+<span class="fc" id="L53">   B12110(PARSER, &quot;Error parsing JMS message&quot;),</span>
+
+<span class="fc" id="L55">   B20100(JAXB, &quot;JSON Unmarshalling error&quot;),</span>
+<span class="fc" id="L56">   B20105(JAXB, &quot;JSON Unmarshalling error; file not found&quot;),</span>
+<span class="fc" id="L57">   B20110(JAXB, &quot;JSON Marshalling error&quot;),</span>
+<span class="fc" id="L58">   B20120(JAXB, &quot;JAXB Unmarshalling error&quot;),</span>
+<span class="fc" id="L59">   B20130(JAXB, &quot;JAXB Unmarshalling error; file not found&quot;),</span>
+<span class="fc" id="L60">   B20140(JAXB, &quot;JAXB Marshalling error&quot;),</span>
+<span class="fc" id="L61">   B20150(JAXB, &quot;Error marshalling Payload&quot;),</span>
+
+<span class="fc" id="L63">   B21000(JAXRS, &quot;Invalid response state&quot;),</span>
+<span class="fc" id="L64">   B21010(JAXRS, &quot;Unable to unmarshal error code&quot;),</span>
+<span class="fc" id="L65">   B21020(JAXRS, &quot;Unable to unmarshal JAXRS error response&quot;),</span>
+<span class="fc" id="L66">   B21030(JAXRS, &quot;No known error code was returned within the response&quot;),</span>
+<span class="fc" id="L67">   B21040(JAXRS, &quot;Entity contained no serialized value&quot;),</span>
+
+<span class="fc" id="L69">   B31000(BRIDGE, &quot;Invalid configuration; source type value not supported&quot;),</span>
+<span class="fc" id="L70">   B31010(BRIDGE, &quot;Invalid configuration; source is missing&quot;),</span>
+<span class="fc" id="L71">   B31020(BRIDGE, &quot;Invalid configuration; no JMS destination (queue or topic) defined&quot;),</span>
+<span class="fc" id="L72">   B31021(BRIDGE, &quot;Invalid configuration; both queue and topic are defined&quot;),</span>
+<span class="fc" id="L73">   B31023(BRIDGE, &quot;Invalid configuration; no topic listener container factory found&quot;),</span>
+<span class="fc" id="L74">   B31025(BRIDGE, &quot;Invalid configuration; no queue listener container factory found&quot;),</span>
+<span class="fc" id="L75">   B31027(BRIDGE, &quot;Invalid configuration; no topic connection factory found&quot;),</span>
+<span class="fc" id="L76">   B31029(BRIDGE, &quot;Invalid configuration; no queue connection factory found&quot;),</span>
+<span class="fc" id="L77">   B31030(BRIDGE, &quot;Invalid configuration; source JMS destination is null or blank&quot;),</span>
+<span class="fc" id="L78">   B31031(BRIDGE, &quot;Invalid configuration; source JMS queue and dead letter queue are the same&quot;),</span>
+<span class="fc" id="L79">   B31032(BRIDGE, &quot;Invalid configuration; both key-property and key-regex are defined&quot;),</span>
+<span class="fc" id="L80">   B31035(BRIDGE, &quot;Invalid configuration; target Kafka topic is null or blank&quot;),</span>
+<span class="fc" id="L81">   B31040(BRIDGE, &quot;Invalid configuration; source Kafka topic is null or blank&quot;),</span>
+<span class="fc" id="L82">   B31043(BRIDGE, &quot;Invalid configuration; source Kafka topic and dead letter copy are the same&quot;),</span>
+<span class="fc" id="L83">   B31045(BRIDGE, &quot;Invalid configuration; target JMS destination is null or blank&quot;),</span>
+<span class="fc" id="L84">   B31046(BRIDGE, &quot;Invalid configuration; message type is not supported&quot;),</span>
+<span class="fc" id="L85">   B31047(BRIDGE, &quot;Error attempting to register Payload DataFormat service&quot;),</span>
+<span class="fc" id="L86">   B31048(BRIDGE, &quot;Error attempting to create Camel route&quot;),</span>
+<span class="fc" id="L87">   B31050(BRIDGE, &quot;Unable to retrieve JMS message body&quot;),</span>
+<span class="fc" id="L88">   B31060(BRIDGE, &quot;Error attempting to set JMS message property&quot;),</span>
+<span class="fc" id="L89">   B31070(BRIDGE, &quot;Key property {} not found in source message header&quot;),</span>
+<span class="fc" id="L90">   B31080(BRIDGE, &quot;Key property {} in JMS header is blank&quot;),</span>
+<span class="fc" id="L91">   B31085(BRIDGE, &quot;Key property {} in JMS payload is blank&quot;),</span>
+<span class="fc" id="L92">   B31090(BRIDGE, &quot;Error attempting to send JMS message from Kafka consumer&quot;),</span>
+<span class="fc" id="L93">   B31100(BRIDGE, &quot;Error attempting to send Kafka message from JMS consumer&quot;),</span>
+<span class="fc" id="L94">   B31105(BRIDGE, &quot;Error attempting to send Kafka message from JMS consumer future&quot;),</span>
+<span class="fc" id="L95">   B31110(BRIDGE, &quot;Unable to resolve destination while configuring the EMS bridge&quot;),</span>
+<span class="fc" id="L96">   B31120(BRIDGE, &quot;Error attempting to send JMS message from Kafka consumer, asynchronously&quot;),</span>
+<span class="fc" id="L97">   B31130(BRIDGE, &quot;Error attempting to serialize JMS ObjectMessage to JSON&quot;),</span>
+
+<span class="fc" id="L99">   B43000(OAUTH2, &quot;Error occurred during initialization of authenticator manager for OAuth2 resource server&quot;),</span>
+<span class="fc" id="L100">   B43010(OAUTH2, &quot;Error occurred during initialization of SSL trust all strategy&quot;),</span>
+<span class="fc" id="L101">   B43020(OAUTH2, &quot;User name claim is not provided or its value is null&quot;);</span>
+
+   /** Component in which error occurred */
+<span class="nc" id="L104">   private final Component component;</span>
+
+   /** Integral value of the error code extracted from enumeration value */
+<span class="nc" id="L107">   private final int code;</span>
+
+   /** Error description */
+<span class="fc" id="L110">   private final String description;</span>
+
+   /**
+    * Construct immutable enum values.
+    * @param theComponent component
+    * @param theDescription description
+    */
+<span class="fc" id="L117">   BirchErrorCode(@NonNull final BirchComponent theComponent, @NonNull final String theDescription) {</span>
+<span class="fc" id="L118">      this.component = theComponent;</span>
+<span class="fc" id="L119">      this.code = Integer.parseInt(this.name().substring(1));</span>
+<span class="fc" id="L120">      this.description = theDescription;</span>
+<span class="fc" id="L121">   }</span>
+
+   /** {@inheritDoc} */
+   @Override
+   public ErrorResponse&lt;BirchErrorCode&gt; errorResponse() {
+<span class="fc" id="L126">      return new ErrorResponse&lt;&gt;(this);</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

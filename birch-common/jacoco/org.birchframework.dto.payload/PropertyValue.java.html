@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PropertyValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.dto.payload</a> &gt; <span class="el_source">PropertyValue.java</span></div><h1>PropertyValue.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+
+package org.birchframework.dto.payload;
+
+import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
+import javax.validation.constraints.NotNull;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
+import lombok.ToString.Include;
+
+import static com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING;
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
+import static org.birchframework.dto.payload.PropertyValue.PropertyType.*;
+
+/**
+ * Generic property value.
+ * @author Keivan Khalichi
+ */
+@JsonInclude(NON_NULL)
+@Getter
+<span class="nc" id="L42">@NoArgsConstructor</span>
+@SuppressWarnings({&quot;unused&quot;})
+public class PropertyValue implements Serializable {
+
+   public static final String BOOLEAN_TYPE_NAME = &quot;boolean&quot;;
+   public static final String BYTE_TYPE_NAME    = &quot;byte&quot;;
+   public static final String SHORT_TYPE_NAME   = &quot;short&quot;;
+   public static final String INTEGER_TYPE_NAME = &quot;integer&quot;;
+   public static final String LONG_TYPE_NAME    = &quot;long&quot;;
+   public static final String DOUBLE_TYPE_NAME  = &quot;double&quot;;
+   public static final String FLOAT_TYPE_NAME   = &quot;float&quot;;
+   public static final String STRING_TYPE_NAME  = &quot;string&quot;;
+
+<span class="nc" id="L55">   @JsonFormat(shape = STRING)</span>
+<span class="nc" id="L56">   @RequiredArgsConstructor</span>
+<span class="nc" id="L57">   @ToString(includeFieldNames = false, onlyExplicitlyIncluded = true)</span>
+   public enum PropertyType {
+<span class="nc" id="L59">      @JsonProperty(BOOLEAN_TYPE_NAME)</span>
+      BOOLEAN(BOOLEAN_TYPE_NAME, Boolean.class),
+<span class="nc" id="L61">      @JsonProperty(BYTE_TYPE_NAME)</span>
+      BYTE(BYTE_TYPE_NAME, Byte.class),
+<span class="nc" id="L63">      @JsonProperty(SHORT_TYPE_NAME)</span>
+      SHORT(SHORT_TYPE_NAME, Short.class),
+<span class="nc" id="L65">      @JsonProperty(INTEGER_TYPE_NAME)</span>
+      INTEGER(INTEGER_TYPE_NAME, Integer.class),
+<span class="nc" id="L67">      @JsonProperty(LONG_TYPE_NAME)</span>
+      LONG(LONG_TYPE_NAME, Long.class),
+<span class="nc" id="L69">      @JsonProperty(DOUBLE_TYPE_NAME)</span>
+      DOUBLE(DOUBLE_TYPE_NAME, Double.class),
+<span class="nc" id="L71">      @JsonProperty(FLOAT_TYPE_NAME)</span>
+      FLOAT(FLOAT_TYPE_NAME, Float.class),
+<span class="nc" id="L73">      @JsonProperty(STRING_TYPE_NAME)</span>
+      STRING(STRING_TYPE_NAME, String.class);
+
+<span class="nc" id="L76">      private static final Map&lt;String, PropertyType&gt; valuesMap = Arrays.stream(values()).collect(Collectors.toMap(</span>
+<span class="nc" id="L77">         propertyType -&gt; propertyType.typeString, propertyType -&gt; propertyType</span>
+      ));
+
+      @Include
+      private final String                        typeString;
+<span class="nc" id="L82">      @Getter</span>
+      private final Class&lt;? extends Serializable&gt; typeClass;
+
+      @JsonCreator
+      public static PropertyType fromString(final String theString) {
+<span class="nc" id="L87">         return valuesMap.get(theString);</span>
+      }
+   }
+
+   @JsonProperty(BOOLEAN_TYPE_NAME)
+<span class="nc" id="L92">   private Boolean booleanValue;</span>
+   @JsonProperty(BYTE_TYPE_NAME)
+<span class="nc" id="L94">   private Byte byteValue;</span>
+   @JsonProperty(DOUBLE_TYPE_NAME)
+<span class="nc" id="L96">   private Double doubleValue;</span>
+   @JsonProperty(FLOAT_TYPE_NAME)
+<span class="nc" id="L98">   private Float floatValue;</span>
+   @JsonProperty(INTEGER_TYPE_NAME)
+<span class="nc" id="L100">   private Integer integerValue;</span>
+   @JsonProperty(LONG_TYPE_NAME)
+<span class="nc" id="L102">   private Long longValue;</span>
+   @JsonProperty(SHORT_TYPE_NAME)
+<span class="nc" id="L104">   private Short shortValue;</span>
+   @JsonProperty(STRING_TYPE_NAME)
+<span class="nc" id="L106">   private String stringValue;</span>
+   @JsonProperty
+<span class="nc" id="L108">   private PropertyType propertyType;</span>
+
+   /**
+    * Constructor used mainly for testing.  Assigns value to the appropriate field by inspecting its type.
+    * @param theValue the value to be stored in this object
+    * @param &lt;T&gt; the type of the value
+    */
+<span class="nc" id="L115">   public &lt;T&gt; PropertyValue(@NotNull final T theValue) {</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">      if (theValue instanceof Boolean) {</span>
+<span class="nc" id="L117">         this.booleanValue = (Boolean) theValue;</span>
+<span class="nc" id="L118">         this.propertyType = BOOLEAN;</span>
+      }
+<span class="nc bnc" id="L120" title="All 2 branches missed.">      else if (theValue instanceof Byte) {</span>
+<span class="nc" id="L121">         this.byteValue = (Byte) theValue;</span>
+<span class="nc" id="L122">         this.propertyType = BYTE;</span>
+      }
+<span class="nc bnc" id="L124" title="All 2 branches missed.">      else if (theValue instanceof Double) {</span>
+<span class="nc" id="L125">         this.doubleValue = (Double) theValue;</span>
+<span class="nc" id="L126">         this.propertyType = DOUBLE;</span>
+      }
+<span class="nc bnc" id="L128" title="All 2 branches missed.">      else if (theValue instanceof Float) {</span>
+<span class="nc" id="L129">         this.floatValue = (Float) theValue;</span>
+<span class="nc" id="L130">         this.propertyType = FLOAT;</span>
+      }
+<span class="nc bnc" id="L132" title="All 2 branches missed.">      else if (theValue instanceof Integer) {</span>
+<span class="nc" id="L133">         this.integerValue = (Integer) theValue;</span>
+<span class="nc" id="L134">         this.propertyType = INTEGER;</span>
+      }
+<span class="nc bnc" id="L136" title="All 2 branches missed.">      else if (theValue instanceof Long) {</span>
+<span class="nc" id="L137">         this.longValue = (Long) theValue;</span>
+<span class="nc" id="L138">         this.propertyType = LONG;</span>
+      }
+<span class="nc bnc" id="L140" title="All 2 branches missed.">      else if (theValue instanceof Short) {</span>
+<span class="nc" id="L141">         this.shortValue = (Short) theValue;</span>
+<span class="nc" id="L142">         this.propertyType = SHORT;</span>
+      }
+<span class="nc bnc" id="L144" title="All 2 branches missed.">      else if (theValue instanceof String) {</span>
+<span class="nc" id="L145">         this.stringValue = (String) theValue;</span>
+<span class="nc" id="L146">         this.propertyType = PropertyType.STRING;</span>
+      }
+<span class="nc" id="L148">   }</span>
+
+   public PropertyValue(final boolean theValue) {
+<span class="nc" id="L151">      this(Boolean.valueOf(theValue));</span>
+<span class="nc" id="L152">   }</span>
+
+   public PropertyValue(final byte theValue) {
+<span class="nc" id="L155">      this(Byte.valueOf(theValue));</span>
+<span class="nc" id="L156">   }</span>
+
+   public PropertyValue(final int theValue) {
+<span class="nc" id="L159">      this(Integer.valueOf(theValue));</span>
+<span class="nc" id="L160">   }</span>
+
+   public PropertyValue(final double theValue) {
+<span class="nc" id="L163">      this(Double.valueOf(theValue));</span>
+<span class="nc" id="L164">   }</span>
+
+   public PropertyValue(final float theValue) {
+<span class="nc" id="L167">      this(Float.valueOf(theValue));</span>
+<span class="nc" id="L168">   }</span>
+
+   public PropertyValue(final long theValue) {
+<span class="nc" id="L171">      this(Long.valueOf(theValue));</span>
+<span class="nc" id="L172">   }</span>
+
+   public PropertyValue(final short theValue) {
+<span class="nc" id="L175">      this(Short.valueOf(theValue));</span>
+<span class="nc" id="L176">   }</span>
+
+   /**
+    * Returns the value represented by this instance.  Value is determined by {@link #propertyType}.
+    * @return the value according to property type
+    */
+   public Object value() {
+<span class="nc bnc" id="L183" title="All 2 branches missed.">      if (this.propertyType != null) {</span>
+<span class="nc bnc" id="L184" title="All 9 branches missed.">         switch (this.propertyType) {</span>
+            case STRING:
+<span class="nc" id="L186">               return this.stringValue;</span>
+            case INTEGER:
+<span class="nc" id="L188">               return this.integerValue;</span>
+            case BOOLEAN:
+<span class="nc" id="L190">               return this.booleanValue;</span>
+            case DOUBLE:
+<span class="nc" id="L192">               return this.doubleValue;</span>
+            case BYTE:
+<span class="nc" id="L194">               return this.byteValue;</span>
+            case FLOAT:
+<span class="nc" id="L196">               return this.floatValue;</span>
+            case LONG:
+<span class="nc" id="L198">               return this.longValue;</span>
+            case SHORT:
+<span class="nc" id="L200">               return this.shortValue;</span>
+            default:
+<span class="nc" id="L202">               return null;</span>
+         }
+      }
+<span class="nc" id="L205">      return null;</span>
+   }
+
+   /**
+    * Returns the string representation of the first of the values that is non-null.
+    * @return string representation of the value of this property; null if {@link #value()} returns null
+    */
+   @Override
+   public String toString() {
+<span class="nc bnc" id="L214" title="All 2 branches missed.">      return this.value() == null ? null : this.value().toString();</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

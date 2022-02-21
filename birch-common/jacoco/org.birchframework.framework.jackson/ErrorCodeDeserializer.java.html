@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ErrorCodeDeserializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.jackson</a> &gt; <span class="el_source">ErrorCodeDeserializer.java</span></div><h1>ErrorCodeDeserializer.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+
+package org.birchframework.framework.jackson;
+
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.reflect.MethodUtils;
+import org.birchframework.dto.ErrorCode;
+
+/**
+ * Jackson deserializer for {@link ErrorCode} subclasses.  This class needs to be initialized by the implementation of ErrorCode.  Only one
+ * implementation can be registered with this class per class loader.
+ * @author Keivan Khalichi
+ */
+public class ErrorCodeDeserializer&lt;E extends Enum&lt;E&gt; &amp; ErrorCode&lt;E&gt;&gt; extends StdDeserializer&lt;E&gt; {
+
+   private Class&lt;E&gt; valueClass;
+
+   protected ErrorCodeDeserializer(final Class&lt;E&gt; theValueClass) {
+<span class="nc" id="L37">      super(theValueClass);</span>
+<span class="nc" id="L38">      this.valueClass = theValueClass;</span>
+<span class="nc" id="L39">   }</span>
+
+   public ErrorCodeDeserializer(final JavaType theValueType) {
+<span class="nc" id="L42">      super(theValueType);</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">      this.valueClass = (theValueType == null) ? null : (Class&lt;E&gt;) theValueType.getRawClass();</span>
+<span class="nc" id="L44">   }</span>
+
+   @Override
+   public E deserialize(final JsonParser theParser, final DeserializationContext theContext) throws IOException {
+<span class="nc bnc" id="L48" title="All 2 branches missed.">      if (valueClass != null) {</span>
+<span class="nc" id="L49">         var aValueString = theParser.readValueAs(String.class);</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">         if (StringUtils.isEmpty(aValueString)) {</span>
+<span class="nc" id="L51">            return null;</span>
+         }
+         else {
+<span class="nc" id="L54">            aValueString = aValueString.trim().replace(&quot;\&quot;&quot;, &quot;&quot;);</span>
+            try {
+<span class="nc" id="L56">               return (E) MethodUtils.invokeStaticMethod(this.valueClass, &quot;valueOf&quot;, aValueString);</span>
+            }
+<span class="nc" id="L58">            catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L59">               return null;</span>
+            }
+         }
+      }
+      else {
+<span class="nc" id="L64">         return null;</span>
+      }
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

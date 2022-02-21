@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Parser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.regex</a> &gt; <span class="el_source">Parser.java</span></div><h1>Parser.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.regex;
+
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.Nonnull;
+import javax.validation.constraints.NotNull;
+import org.birchframework.framework.beans.Beans;
+import org.birchframework.framework.stub.Stub;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.reflect.FieldUtils;
+import org.checkerframework.org.plumelib.util.RegexUtil;
+import org.springframework.core.annotation.AnnotationUtils;
+
+import static org.birchframework.dto.BirchErrorCode.*;
+
+/**
+ * Parser that works with classes annotated with {@link RegexBinding} and fields annotated with {@link CaptureGroup}.  This utility
+ * will parse an input against any number of annotated classes, and will create an instance of each of the class types where its defined regular
+ * expression matches &lt;bold&gt;one line&lt;/bold&gt; of that input string.
+ * @see RegexBinding
+ * @see CaptureGroup
+ * @author Keivan Khalichi
+ */
+@SuppressWarnings({&quot;AutoBoxing&quot;, &quot;AutoUnboxing&quot;})
+public class Parser {
+
+   private final Map&lt;Class&lt;?&gt;, ParseClassDescriptor&gt; types;
+
+   /**
+    * Constructor that prepares the parser given the class types.
+    * @param theTypes
+    */
+<span class="fc" id="L58">   Parser(@Nonnull Class&lt;?&gt;[] theTypes) {</span>
+<span class="fc" id="L59">      this.types = Arrays.stream(theTypes).collect(Collectors.toMap(</span>
+<span class="fc" id="L60">         clazz -&gt; clazz,</span>
+         clazz -&gt; {
+<span class="fc" id="L62">            final var aFieldDescriptors =</span>
+<span class="fc" id="L63">               FieldUtils.getFieldsListWithAnnotation(clazz, CaptureGroup.class)</span>
+<span class="fc" id="L64">                         .stream()</span>
+<span class="fc" id="L65">                         .peek(f -&gt; f.setAccessible(true))</span>
+<span class="fc" id="L66">                         .map(f -&gt; new FieldDescriptor(f, (Integer) Objects.requireNonNull(AnnotationUtils.getValue(f.getAnnotation(CaptureGroup.class)))))</span>
+<span class="fc" id="L67">                         .collect(Collectors.toList());</span>
+<span class="fc" id="L68">            final var aDuplicatesList =</span>
+<span class="fc" id="L69">               aFieldDescriptors.stream()</span>
+<span class="fc" id="L70">                                .collect(Collectors.groupingBy(f -&gt; f.captureGroup, Collectors.counting()))</span>
+<span class="fc" id="L71">                                .entrySet()</span>
+<span class="fc" id="L72">                                .stream()</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">                                .filter(entry -&gt; entry.getValue() &gt; 1)</span>
+<span class="fc" id="L74">                                .map(Entry::getKey)</span>
+<span class="fc" id="L75">                                .collect(Collectors.toList());</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">            if (!aDuplicatesList.isEmpty()) {</span>
+<span class="nc" id="L77">               throw new ParseException(B12040);</span>
+            }
+<span class="fc" id="L79">            final var aRegexAnnotation = AnnotationUtils.findAnnotation(clazz, RegexBinding.class);</span>
+<span class="fc" id="L80">            final var aRegex = (String) AnnotationUtils.getValue(aRegexAnnotation);</span>
+<span class="fc" id="L81">            final var aRegexException = RegexUtil.regexException(</span>
+<span class="fc" id="L82">               aRegex, aFieldDescriptors.stream().map(fd -&gt; fd.captureGroup).max(Comparator.comparingInt(cg -&gt; cg)).orElse(0)</span>
+            );
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">            if (aRegexException != null) {</span>
+<span class="nc" id="L85">               throw new ParseException(B12045, aRegexException);</span>
+            }
+<span class="fc" id="L87">            return new ParseClassDescriptor(aFieldDescriptors, aRegex);</span>
+         }
+      ));
+<span class="fc" id="L90">   }</span>
+
+   /**
+    * Factory method to create an instance of this utility.
+    * @param theTypes class types annotated with {@link RegexBinding}
+    * @return a parser instance
+    */
+   @SuppressWarnings(&quot;VariableArgumentMethod&quot;)
+   public static Parser of(@Nonnull Class&lt;?&gt;... theTypes) {
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">      if (ArrayUtils.isEmpty(theTypes)) {</span>
+<span class="nc" id="L100">         throw new ParseException(B12010);</span>
+      }
+<span class="fc" id="L102">      return new Parser(theTypes);</span>
+   }
+
+   /**
+    * Parses the input against the class types provided in the {@link #of(Class[])} method.  This method is thread-safe.
+    * @param theInput the input to be parsed 1 line at a time
+    * @return instances of types provided, with one instance per match within the input
+    */
+   public List&lt;?&gt; parse(@Nonnull String theInput) {
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">      if (StringUtils.isBlank(theInput)) {</span>
+<span class="nc" id="L112">         throw new ParseException(B12020);</span>
+      }
+<span class="fc" id="L114">      return this.parse(theInput.lines()).collect(Collectors.toList());</span>
+   }
+
+   /**
+    * Parses the input stream of strings against the class types provided in the {@link #of(Class[])} method, in a stream.  Though this method is thread-safe,
+    * the provided parameter stream must not be a parrallel stream.
+    * @param theInput the input to be parsed as a stream of strings wherein 1 string is parsed against library of possible {@link RegexBinding} POJOs
+    * @return stream of instances of types provided, with one instance per match within the input
+    * @throws ParseException if the provided stream is a parallel stream
+    */
+   public Stream&lt;?&gt; parse(@Nonnull Stream&lt;String&gt; theInput) {
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">      if (theInput.isParallel()) {</span>
+<span class="nc" id="L126">         throw new ParseException(B12025);</span>
+      }
+<span class="fc" id="L128">      final var aMatcherRef = new AtomicReference&lt;Matcher&gt;();</span>
+<span class="fc" id="L129">      return theInput.flatMap(line -&gt;</span>
+<span class="fc" id="L130">                        this.types.entrySet()</span>
+<span class="fc" id="L131">                            .stream()      // cannot be a parallel stream</span>
+<span class="fc" id="L132">                            .filter(entry -&gt; {</span>
+<span class="fc" id="L133">                               aMatcherRef.set(entry.getValue().matcher(line));</span>
+<span class="fc" id="L134">                               return aMatcherRef.get().matches();</span>
+                            })
+<span class="fc" id="L136">                            .map(entry -&gt; {</span>
+<span class="fc" id="L137">                               final var aClass     = entry.getKey();</span>
+<span class="fc" id="L138">                               final var aClassDesc = entry.getValue();</span>
+<span class="fc" id="L139">                               return Stub.of(aClass, targetObject -&gt; {</span>
+<span class="fc" id="L140">                                  aClassDesc.fields.forEach((captureGroup, fieldDesc) -&gt; {</span>
+<span class="fc" id="L141">                                     final var aValue = aMatcherRef.get().group(captureGroup);</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">                                     if (StringUtils.isNotBlank(aValue)) {</span>
+                                        try {
+<span class="fc" id="L144">                                           FieldUtils.writeField(fieldDesc.field, targetObject, Beans.valueOf(fieldDesc.field.getType(), aValue));</span>
+                                        }
+<span class="nc" id="L146">                                        catch (IllegalAccessException e) {</span>
+<span class="nc" id="L147">                                           throw new ParseException(B12030, e);</span>
+<span class="fc" id="L148">                                        }</span>
+                                     }
+<span class="fc" id="L150">                                  });</span>
+<span class="fc" id="L151">                               });</span>
+                            })
+                     );
+   }
+
+   static class ParseClassDescriptor {
+
+      final Map&lt;Integer, FieldDescriptor&gt; fields;
+      final Pattern                       pattern;
+
+<span class="fc" id="L161">      ParseClassDescriptor(final List&lt;FieldDescriptor&gt; theFieldDescriptors, final String theRegex) {</span>
+<span class="fc" id="L162">         this.fields = Collections.unmodifiableMap(theFieldDescriptors.stream().collect(Collectors.toMap(fd -&gt; fd.captureGroup, fd -&gt; fd)));</span>
+<span class="fc" id="L163">         this.pattern = Pattern.compile(theRegex);</span>
+<span class="fc" id="L164">      }</span>
+
+      Matcher matcher(final String theString) {
+<span class="fc" id="L167">         return this.pattern.matcher(theString);</span>
+      }
+   }
+
+   static class FieldDescriptor {
+      final Field field;
+      final int captureGroup;
+
+<span class="fc" id="L175">      FieldDescriptor(@NotNull final Field theField, @NotNull final int theCaptureGroup) {</span>
+<span class="fc" id="L176">         field        = theField;</span>
+<span class="fc" id="L177">         captureGroup = theCaptureGroup;</span>
+<span class="fc" id="L178">      }</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

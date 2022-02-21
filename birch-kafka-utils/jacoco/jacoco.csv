@@ -1,0 +1,5 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+birch-kafka-utils,org.birchframework.framework.kafka,KafkaAdminUtilsAutoConfiguration,0,14,0,0,0,3,0,3,0,3
+birch-kafka-utils,org.birchframework.framework.kafka,KafkaAdminUtilsMetrics,80,47,4,2,10,12,8,4,5,4
+birch-kafka-utils,org.birchframework.framework.kafka,KafkaAdminUtils,89,243,4,4,16,44,9,12,5,12
+birch-kafka-utils,org.birchframework.resource,KafkaAdminUtilsResourceImpl,14,10,0,0,2,2,2,2,2,2

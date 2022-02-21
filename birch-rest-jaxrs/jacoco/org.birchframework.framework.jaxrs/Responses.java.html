@@ -1,0 +1,764 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Responses.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-rest-jaxrs</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.jaxrs</a> &gt; <span class="el_source">Responses.java</span></div><h1>Responses.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.jaxrs;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import javax.annotation.Nonnull;
+import javax.ws.rs.core.GenericType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Throwables;
+import org.birchframework.dto.BirchErrorCode;
+import org.birchframework.dto.ErrorCode;
+import org.birchframework.framework.beans.Beans;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.reflect.MethodUtils;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+
+import static com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES;
+import static org.birchframework.dto.BirchErrorCode.*;
+import static javax.ws.rs.core.Response.Status.*;
+
+/**
+ * REST/HTTP response utilities.  Enables streamlined interaction with {@link Response} objects via functional programming style enabled by Java Lambdas,
+ * such as:
+ * &lt;p/&gt;
+ * &lt;pre&gt;
+ * Responses.of(service.findBookByISBN(anISBN)).ifOKOrElse(
+ *    Book.class,
+ *    book -&amp;gt; log.info(&quot;Book: {}&quot;, book.toString()),   // book is automatically desrialized as an instance of Book.class
+ *    errorCode -&amp;gt; log.error(&quot;Error retrieving book with ISBN: {}; error: {}&quot;, anISBN, errorCode.asString())
+ * );
+ * &lt;/pre&gt;
+ * This class is not thread-safe.  The factory {@link Responses#of(Response)} must be called for each new {@link Response} object.
+ * @author Keivan Khalichi
+ */
+<span class="fc" id="L56">@Slf4j</span>
+@SuppressWarnings({&quot;unchecked&quot;, &quot;unused&quot;})
+public class Responses {
+
+<span class="fc" id="L60">   public static final int HTTP_OK                    = OK.getStatusCode();</span>
+<span class="fc" id="L61">   public static final int HTTP_CREATED               = CREATED.getStatusCode();</span>
+<span class="fc" id="L62">   public static final int HTTP_BAD_REQUEST           = BAD_REQUEST.getStatusCode();</span>
+<span class="fc" id="L63">   public static final int HTTP_NOT_MODIFIED          = NOT_MODIFIED.getStatusCode();</span>
+<span class="fc" id="L64">   public static final int HTTP_NOT_FOUND             = NOT_FOUND.getStatusCode();</span>
+<span class="fc" id="L65">   public static final int HTTP_NO_CONTENT            = NO_CONTENT.getStatusCode();</span>
+<span class="fc" id="L66">   public static final int HTTP_INTERNAL_SERVER_ERROR = INTERNAL_SERVER_ERROR.getStatusCode();</span>
+<span class="fc" id="L67">   public static final int HTTP_NOT_IMPLEMENTED       = NOT_IMPLEMENTED.getStatusCode();</span>
+
+<span class="fc" id="L69">   private static final ObjectMapper objectMapper          = Jackson2ObjectMapperBuilder.json().build();</span>
+<span class="fc" id="L70">   private static final ObjectMapper errorCodeObjectMapper = Jackson2ObjectMapperBuilder.json().featuresToEnable(ALLOW_UNQUOTED_FIELD_NAMES).build();</span>
+
+   /** Reference to the {@link ErrorCode} implementation class.  Its value is looked up and initialized the very first time this class is loaded. */
+   private static final Class&lt;? extends Enum&lt;?&gt;&gt; errorCodeClass;
+
+   static {
+<span class="fc" id="L76">      errorCodeClass = (Class&lt;? extends Enum&lt;?&gt;&gt;) Beans.findImplementation(ErrorCode.class, BirchErrorCode.class)</span>
+<span class="fc" id="L77">                                                       .filter(Enum.class::isAssignableFrom)</span>
+<span class="fc" id="L78">                                                       .orElse(BirchErrorCode.class);</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">      if (errorCodeClass == BirchErrorCode.class) {</span>
+<span class="fc" id="L80">         log.warn(&quot;Unable to find suitable implementation of {}; there must be exactly one enum implementation of this interface beside {}&quot;,</span>
+<span class="fc" id="L81">                  ErrorCode.class.getName(), BirchErrorCode.class.getName());</span>
+      }
+<span class="fc" id="L83">   }</span>
+
+   /** The wrapped JAX-RS {@link Response} */
+   private final Response response;
+
+   /**
+    * Private constructor.  Given the last caller, find the first implementation of the ErrorCode interface from the caller's base package
+    * in order to use it in deserializing error codes.
+    * @param theResponse the object to be wrapped
+    */
+<span class="fc" id="L93">   private Responses(final Response theResponse) {</span>
+<span class="fc" id="L94">      this.response = theResponse;</span>
+<span class="fc" id="L95">   }</span>
+
+   /**
+    * Factory method.  Uses calling method to construct an instance of this class
+    * @param theResponse the object to be wrapped
+    * @return an instance of this class
+    */
+   public static Responses of(@Nonnull final Response theResponse) {
+<span class="fc" id="L103">      return new Responses(theResponse);</span>
+   }
+
+   /**
+       * Getter for {@link #response}.  Provided for subclasses to use.
+    * @returns Value of {@link #response}
+    */
+   protected Response getResponse() {
+<span class="fc" id="L111">      return response;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#OK}.
+    * This method is provided for functional programming (i.e. Responses::ok)
+    * @param theResponse the target object
+    * @param &lt;T&gt; any type that extends {@link Response}
+    * @return true if response was {@link Status#OK}
+    */
+   public static &lt;T extends Response&gt; boolean ok(final T theResponse) {
+<span class="nc bnc" id="L122" title="All 4 branches missed.">      return theResponse != null &amp;&amp; theResponse.getStatus() == HTTP_OK;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#CREATED}.
+    * This method is provided for functional programming (i.e. Responses::created)
+    * @param theResponse the target object
+    * @param &lt;T&gt; any type that extends {@link Response}
+    * @return true if response was {@link Status#CREATED}
+    */
+   public static &lt;T extends Response&gt; boolean created(final T theResponse) {
+<span class="nc bnc" id="L133" title="All 4 branches missed.">      return theResponse != null &amp;&amp; theResponse.getStatus() == HTTP_CREATED;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#NOT_FOUND}.
+    * This method is provided for functional programming (i.e. Responses::notFound)
+    * @param theResponse the target object
+    * @param &lt;T&gt; any type that extends {@link Response}
+    * @return true if response was {@link Status#NOT_FOUND}
+    */
+   public static &lt;T extends Response&gt; boolean notFound(final T theResponse) {
+<span class="nc bnc" id="L144" title="All 4 branches missed.">      return theResponse != null &amp;&amp; theResponse.getStatus() == HTTP_NOT_FOUND;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#NOT_MODIFIED}.
+    * This method is provided for functional programming (i.e. Responses::notModified)
+    * @param theResponse the target object
+    * @param &lt;T&gt; any type that extends {@link Response}
+    * @return true if response was {@link Status#NOT_MODIFIED}
+    */
+   public static &lt;T extends Response&gt; boolean notModified(final T theResponse) {
+<span class="nc bnc" id="L155" title="All 4 branches missed.">      return theResponse != null &amp;&amp; theResponse.getStatus() == HTTP_NOT_MODIFIED;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#INTERNAL_SERVER_ERROR}.
+    * This method is provided for functional programming (i.e. Responses::internalServerError)
+    * @param theResponse the target object
+    * @param &lt;T&gt; any type that extends {@link Response}
+    * @return true if response was {@link Status#INTERNAL_SERVER_ERROR}
+    */
+   public static &lt;T extends Response&gt; boolean internalServerError(final T theResponse) {
+<span class="nc bnc" id="L166" title="All 4 branches missed.">      return theResponse != null &amp;&amp; theResponse.getStatus() == HTTP_INTERNAL_SERVER_ERROR;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#BAD_REQUEST}.
+    * @return true if response was {@link Status#BAD_REQUEST}
+    */
+   public boolean badRequest() {
+<span class="pc bpc" id="L174" title="2 of 4 branches missed.">      return this.response != null &amp;&amp; this.response.getStatus() == HTTP_BAD_REQUEST;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#OK}.
+    * @return true if response was {@link Status#OK}
+    */
+   public boolean ok() {
+<span class="pc bpc" id="L182" title="1 of 4 branches missed.">      return this.response != null &amp;&amp; this.response.getStatus() == HTTP_OK;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#CREATED}.
+    * @return true if response was {@link Status#CREATED}
+    */
+   public boolean created() {
+<span class="pc bpc" id="L190" title="2 of 4 branches missed.">      return this.response != null &amp;&amp; this.response.getStatus() == HTTP_CREATED;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#NOT_FOUND}.
+    * @return true if response was {@link Status#NOT_FOUND}
+    */
+   public boolean notFound() {
+<span class="pc bpc" id="L198" title="1 of 4 branches missed.">      return this.response != null &amp;&amp; this.response.getStatus() == HTTP_NOT_FOUND;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#NOT_MODIFIED}.
+    * @return true if response was {@link Status#NOT_MODIFIED}
+    */
+   public boolean notModified() {
+<span class="pc bpc" id="L206" title="1 of 4 branches missed.">      return this.response != null &amp;&amp; this.response.getStatus() == HTTP_NOT_MODIFIED;</span>
+   }
+
+   /**
+    * Returns {@link Response#getStatusInfo()} == {@link Status#INTERNAL_SERVER_ERROR}.
+    * @return true if response was {@link Status#INTERNAL_SERVER_ERROR}
+    */
+   public boolean internalServerError() {
+<span class="pc bpc" id="L214" title="1 of 4 branches missed.">      return this.response != null &amp;&amp; this.response.getStatus() == HTTP_INTERNAL_SERVER_ERROR;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the {@link Response#readEntity(Class)}, unmarshalls, and provides it to the specified type for the executing function.
+    * @param theClass the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses ifOK(final Class&lt;T&gt; theClass, final Consumer&lt;T&gt; theAction) {
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L227">         this.entity(theClass).ifPresent(theAction);</span>
+      }
+<span class="fc" id="L229">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the {@link Response#readEntity(GenericType)}, unmarshalls, and provides it to the specified type for the executing function.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses ifOK(final GenericType&lt;T&gt; theType, final Consumer&lt;T&gt; theAction) {
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L242">         this.entity(theType).ifPresent(theAction);</span>
+      }
+<span class="fc" id="L244">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the entity via {@link ObjectMapper#readValue(String, TypeReference)}, unmarshalls, and provides it to the specified type for the
+    * executing function.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses ifOK(final TypeReference&lt;T&gt; theType, final Consumer&lt;T&gt; theAction) {
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L258">         this.entity(theType).ifPresent(theAction);</span>
+      }
+<span class="fc" id="L260">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the {@link Response#readEntity(Class)}, unmarshalls, and provides it to the specified class type for the executing function.
+    * Otherwise will execute the {@code theElseAction} parameter with the {@link ErrorCode} that is expected within the {@link #response}
+    * @param theClass the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the function to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #ok()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifOKOrElse(final Class&lt;T&gt; theClass, final Consumer&lt;T&gt; theAction, final Consumer&lt;ErrorCode&lt;?&gt;&gt; theElseAction) {
+<span class="pc bpc" id="L273" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L274">         this.entity(theClass).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L277">         this.errorCode().ifPresent(theElseAction);</span>
+      }
+<span class="fc" id="L279">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the {@link Response#readEntity(GenericType)}, unmarshalls, and provides it to the specified class type for the executing function.
+    * Otherwise will execute the {@code theElseAction} parameter with the {@link ErrorCode} that is expected within the {@link #response}
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the function to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #ok()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifOKOrElse(final GenericType&lt;T&gt; theType, final Consumer&lt;T&gt; theAction, final Consumer&lt;ErrorCode&lt;?&gt;&gt; theElseAction) {
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L292">         this.entity(theType).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L295">         this.errorCode().ifPresent(theElseAction);</span>
+      }
+<span class="fc" id="L297">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the entity via {@link ObjectMapper#readValue(String, TypeReference)}, unmarshalls, and provides it to the specified type for the
+    * executing function.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the function to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #ok()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifOKOrElse(final TypeReference&lt;T&gt; theType, final Consumer&lt;T&gt; theAction, final Consumer&lt;ErrorCode&lt;?&gt;&gt; theElseAction) {
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L310">         this.entity(theType).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L313">         this.errorCode().ifPresent(theElseAction);</span>
+      }
+<span class="fc" id="L315">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the {@link Response#readEntity(Class)}, unmarshalls, and provides it to the specified class type for the executing function.
+    * Otherwise will execute the {@code theElseAction} parameter.
+    * @param theClass the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the runnable to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #ok()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifOKOrElse(final Class&lt;T&gt; theClass, final Consumer&lt;T&gt; theAction, final Runnable theElseAction) {
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L328">         this.entity(theClass).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L331">         theElseAction.run();</span>
+      }
+<span class="fc" id="L333">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the {@link Response#readEntity(GenericType)}, unmarshalls, and provides it to the specified class type for the executing function.
+    * Otherwise will execute the {@code theElseAction} parameter.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the runnable to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #ok()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifOKOrElse(final GenericType&lt;T&gt; theType, final Consumer&lt;T&gt; theAction, final Runnable theElseAction) {
+<span class="pc bpc" id="L345" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L346">         this.entity(theType).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L349">         theElseAction.run();</span>
+      }
+<span class="fc" id="L351">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#OK}.
+    * Unwraps the entity via {@link ObjectMapper#readValue(String, TypeReference)}, unmarshalls, and provides it to the specified type for the
+    * executing function.
+    * Otherwise will execute the {@code theElseAction} parameter.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the runnable to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #ok()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifOKOrElse(final TypeReference&lt;T&gt; theType, final Consumer&lt;T&gt; theAction, final Runnable theElseAction) {
+<span class="pc bpc" id="L364" title="1 of 2 branches missed.">      if (this.ok()) {</span>
+<span class="fc" id="L365">         this.entity(theType).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L368">         theElseAction.run();</span>
+      }
+<span class="fc" id="L370">   }</span>
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#CREATED}.
+    * Unwraps the {@link Response#readEntity(Class)}, unmarshalls, and provides it to the specified type for the executing function.
+    * @param theClass the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses ifCreated(final Class&lt;T&gt; theClass, final Consumer&lt;T&gt; theAction) {
+<span class="pc bpc" id="L381" title="1 of 2 branches missed.">      if (this.created()) {</span>
+<span class="fc" id="L382">         this.entity(theClass).ifPresent(theAction);</span>
+      }
+<span class="fc" id="L384">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#CREATED}.
+    * Unwraps the {@link Response#readEntity(GenericType)}, unmarshalls, and provides it to the specified type for the executing function.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses ifCreated(final GenericType&lt;T&gt; theType, final Consumer&lt;T&gt; theAction) {
+<span class="pc bpc" id="L396" title="1 of 2 branches missed.">      if (this.created()) {</span>
+<span class="fc" id="L397">         this.entity(theType).ifPresent(theAction);</span>
+      }
+<span class="fc" id="L399">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#CREATED}.
+    * Unwraps the entity via {@link ObjectMapper#readValue(String, TypeReference)}, unmarshalls, and provides it to the specified type for the
+    * executing function.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses ifCreated(final TypeReference&lt;T&gt; theType, final Consumer&lt;T&gt; theAction) {
+<span class="nc bnc" id="L412" title="All 2 branches missed.">      if (this.created()) {</span>
+<span class="nc" id="L413">         this.entity(theType).ifPresent(theAction);</span>
+      }
+<span class="nc" id="L415">      return this;</span>
+   }
+
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was
+    * {@link Status#CREATED}.
+    * Unwraps the {@link Response#readEntity(Class)}, unmarshalls, and provides it to the specified class type for the executing function.
+    * Otherwise will execute the {@code theElseAction} parameter with the {@link ErrorCode} that is expected within the {@link #response}
+    * @param theClass the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the function to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #created()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifCreatedOrElse(final Class&lt;T&gt; theClass, final Consumer&lt;T&gt; theAction, final Consumer&lt;ErrorCode&lt;?&gt;&gt; theElseAction) {
+<span class="pc bpc" id="L430" title="1 of 2 branches missed.">      if (this.created()) {</span>
+<span class="fc" id="L431">         this.entity(theClass).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L434">         this.errorCode().ifPresent(theElseAction);</span>
+      }
+<span class="fc" id="L436">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was
+    * {@link Status#CREATED}.
+    * Unwraps the {@link Response#readEntity(GenericType)}, unmarshalls, and provides it to the specified class type for the executing function.
+    * Otherwise will execute the {@code theElseAction} parameter with the {@link ErrorCode} that is expected within the {@link #response}
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the function to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #created()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifCreatedOrElse(final GenericType&lt;T&gt; theType, final Consumer&lt;T&gt; theAction, final Consumer&lt;ErrorCode&lt;?&gt;&gt; theElseAction) {
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">      if (this.created()) {</span>
+<span class="fc" id="L450">         this.entity(theType).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L453">         this.errorCode().ifPresent(theElseAction);</span>
+      }
+<span class="fc" id="L455">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was
+    * {@link Status#CREATED}.  Unwraps the entity via {@link ObjectMapper#readValue(String, TypeReference)}, unmarshalls, and provides it to the specified
+    * type for the executing function.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the function to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #created()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifCreatedOrElse(final TypeReference&lt;T&gt; theType, final Consumer&lt;T&gt; theAction,
+                                                        final Consumer&lt;ErrorCode&lt;?&gt;&gt; theElseAction) {
+<span class="nc bnc" id="L468" title="All 2 branches missed.">      if (this.created()) {</span>
+<span class="nc" id="L469">         this.entity(theType).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L472">         this.errorCode().ifPresent(theElseAction);</span>
+      }
+<span class="nc" id="L474">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was
+    * {@link Status#CREATED}.
+    * Unwraps the {@link Response#readEntity(Class)}, unmarshalls, and provides it to the specified class type for the executing function.
+    * Otherwise will execute the {@code theElseAction} parameter.
+    * @param theClass the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the runnable to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #created()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifCreatedOrElse(final Class&lt;T&gt; theClass, final Consumer&lt;T&gt; theAction, final Runnable theElseAction) {
+<span class="pc bpc" id="L487" title="1 of 2 branches missed.">      if (this.created()) {</span>
+<span class="fc" id="L488">         this.entity(theClass).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L491">         theElseAction.run();</span>
+      }
+<span class="fc" id="L493">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter if the wrapped response was
+    * {@link Status#CREATED}. Unwraps the {@link Response#readEntity(GenericType)}, unmarshalls, and provides it to the specified class type for the
+    * executing function. Otherwise will execute the {@code theElseAction} parameter.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the runnable to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #created()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifCreatedOrElse(final GenericType&lt;T&gt; theType, final Consumer&lt;T&gt; theAction, final Runnable theElseAction) {
+<span class="pc bpc" id="L505" title="1 of 2 branches missed.">      if (this.created()) {</span>
+<span class="fc" id="L506">         this.entity(theType).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L509">         theElseAction.run();</span>
+      }
+<span class="fc" id="L511">   }</span>
+
+   /**
+    * Functional method that can be implemented with 2 lambdas.  Will only execute {@code theAction} parameter {@code theAction} parameter if the wrapped response was
+    * {@link Status#CREATED}.  Unwraps the entity via {@link ObjectMapper#readValue(String, TypeReference)}, unmarshalls, and provides it to the specified
+    * type for the executing function. Otherwise will execute the {@code theElseAction} parameter.
+    * @param theType the the target entity type
+    * @param theAction the function to be executed when the condition is met
+    * @param theElseAction the runnable to be executed if response is &lt;emphasis&gt;not&lt;/emphasis&gt; {@link #created()}
+    * @param &lt;T&gt; the expected type of the response entity
+    */
+   public &lt;T extends Serializable&gt; void ifCreatedOrElse(final TypeReference&lt;T&gt; theType, final Consumer&lt;T&gt; theAction, final Runnable theElseAction) {
+<span class="nc bnc" id="L523" title="All 2 branches missed.">      if (this.created()) {</span>
+<span class="nc" id="L524">         this.entity(theType).ifPresent(theAction);</span>
+      }
+      else {
+<span class="nc" id="L527">         theElseAction.run();</span>
+      }
+<span class="nc" id="L529">   }</span>
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#NOT_FOUND}.
+    * Unmarshalls the entity, if one is present, into an {@link Enum} that implements {@link ErrorCode}, and provides it to the provided function.
+    * @param theAction the function to be executed when the condition is met
+    * @return a reference to this object for the purposes of chaining
+    */
+   public Responses ifNotFound(final Consumer&lt;ErrorCode&lt;?&gt;&gt; theAction) {
+<span class="pc bpc" id="L538" title="2 of 4 branches missed.">      if (this.notFound() &amp;&amp; this.response.hasEntity()) {</span>
+<span class="fc" id="L539">         this.errorCode().ifPresent(theAction);</span>
+      }
+<span class="fc" id="L541">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#NOT_MODIFIED}.
+    * Unmarshalls the entity, if one is present, into an {@link Enum} that implements {@link ErrorCode}, and provides it to the provided function.
+    * @param theAction the function to be executed when the condition is met
+    * @return a reference to this object for the purposes of chaining
+    */
+   public Responses ifNotModified(final Consumer&lt;ErrorCode&lt;?&gt;&gt; theAction) {
+<span class="pc bpc" id="L551" title="2 of 4 branches missed.">      if (this.notModified() &amp;&amp; this.response.hasEntity()) {</span>
+<span class="fc" id="L552">         this.errorCode().ifPresent(theAction);</span>
+      }
+<span class="fc" id="L554">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#INTERNAL_SERVER_ERROR}.
+    * Unmarshalls the entity, if one is present, into an {@link Enum} that implements {@link ErrorCode}, and provides it to the provided function.
+    * @param theAction the function to be executed when the condition is met
+    * @return a reference to this object for the purposes of chaining
+    */
+   public Responses ifInternalServerError(final Consumer&lt;ErrorCode&lt;?&gt;&gt; theAction) {
+<span class="pc bpc" id="L564" title="2 of 4 branches missed.">      if (this.internalServerError() &amp;&amp; this.response.hasEntity()) {</span>
+<span class="fc" id="L565">         this.errorCode().ifPresent(theAction);</span>
+      }
+<span class="fc" id="L567">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response was {@link Status#BAD_REQUEST}.
+    * Unmarshalls the entity, if one is present, into an {@link Enum} that implements {@link ErrorCode}, and provides it to the provided function.
+    * @param theAction the function to be executed when the condition is met
+    * @return a reference to this object for the purposes of chaining
+    */
+   public Responses ifBadRequest(final Consumer&lt;ErrorCode&lt;?&gt;&gt; theAction) {
+<span class="pc bpc" id="L577" title="2 of 4 branches missed.">      if (this.badRequest() &amp;&amp; this.response.hasEntity()) {</span>
+<span class="fc" id="L578">         this.errorCode().ifPresent(theAction);</span>
+      }
+<span class="fc" id="L580">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response has an entity, regardless of
+    * {@link Response#getStatus()}.
+    * @param theClass the type of the entity
+    * @param theAction the function to be executed only if the wrapped response {@link Response#hasEntity()}
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses execute(final Class&lt;T&gt; theClass, final Consumer&lt;T&gt; theAction) {
+<span class="pc bpc" id="L592" title="1 of 4 branches missed.">      if (this.response != null &amp;&amp; this.response.hasEntity()) {</span>
+<span class="fc" id="L593">         this.entity(theClass).ifPresent(theAction);</span>
+      }
+<span class="fc" id="L595">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter if the wrapped response has an entity, regardless of
+    * {@link Response#getStatus()}.
+    * @param theType the type of the entity
+    * @param theAction the function to be executed only if the wrapped response {@link Response#hasEntity()}
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses execute(final GenericType&lt;T&gt; theType, final Consumer&lt;T&gt; theAction) {
+<span class="pc bpc" id="L607" title="2 of 4 branches missed.">      if (this.response != null &amp;&amp; this.response.hasEntity()) {</span>
+<span class="fc" id="L608">         this.entity(theType).ifPresent(theAction);</span>
+      }
+<span class="fc" id="L610">      return this;</span>
+   }
+
+   /**
+    * Functional method that can be implemented with a lambda.  Will only execute {@code theAction} parameter  if the wrapped response has an entity, regardless of
+    * {@link Response#getStatus()}.
+    * @param theType the type of the entity
+    * @param theAction the function to be executed only if the wrapped response {@link Response#hasEntity()}
+    * @param &lt;T&gt; the expected type of the response entity
+    * @return a reference to this object for the purposes of chaining
+    */
+   public &lt;T extends Serializable&gt; Responses execute(final TypeReference&lt;T&gt; theType, final Consumer&lt;T&gt; theAction) {
+<span class="pc bpc" id="L622" title="2 of 4 branches missed.">      if (this.response != null &amp;&amp; this.response.hasEntity()) {</span>
+<span class="fc" id="L623">         this.entity(theType).ifPresent(theAction);</span>
+      }
+<span class="fc" id="L625">      return this;</span>
+   }
+
+   /**
+    * Used to transform the entity associated with the wrapped response into another object using a lambda expression.
+    * If response has no entity or was not {@link Status#OK}, then calls mapper with a null.
+    * @param theClass the entity type
+    * @param theMapper the function to be executed
+    * @param &lt;O&gt; the type of the return object
+    * @return the transformed object instance
+    */
+   public &lt;T,O&gt; O map(final Class&lt;T&gt; theClass, @Nonnull final Function&lt;T, O&gt; theMapper) {
+<span class="pc bpc" id="L637" title="2 of 4 branches missed.">      if (this.response.hasEntity() &amp;&amp; this.ok()) {</span>
+<span class="fc" id="L638">         return theMapper.apply(this.entity(theClass).orElse(null));</span>
+      }
+      else {
+<span class="nc" id="L641">         return theMapper.apply(null);</span>
+      }
+   }
+
+   /**
+    * Used to transform the entity associated with the wrapped response into another object using a lambda expression.
+    * If response has no entity or was not {@link Status#OK}, then calls mapper with a null.
+    * @param theType the entity type
+    * @param theMapper the function to be executed
+    * @param &lt;O&gt; the type of the return object
+    * @return the transformed object instance
+    */
+   public &lt;T,O&gt; O map(final GenericType&lt;T&gt; theType, @Nonnull final Function&lt;T, O&gt; theMapper) {
+<span class="pc bpc" id="L654" title="2 of 4 branches missed.">      if (this.response.hasEntity() &amp;&amp; this.ok()) {</span>
+<span class="fc" id="L655">         return theMapper.apply(this.entity(theType).orElse(null));</span>
+      }
+      else {
+<span class="nc" id="L658">         return theMapper.apply(null);</span>
+      }
+   }
+
+   /**
+    * Used to transform the entity associated with the wrapped response into another object using a lambda expression.
+    * If response has no entity or was not {@link Status#OK}, then calls mapper with a null.
+    * @param theType the entity type
+    * @param theMapper the function to be executed
+    * @param &lt;O&gt; the type of the return object
+    * @return the transformed object instance
+    */
+   public &lt;T,O&gt; O map(final TypeReference&lt;T&gt; theType, @Nonnull final Function&lt;T, O&gt; theMapper) {
+<span class="pc bpc" id="L671" title="2 of 4 branches missed.">      if (this.response.hasEntity() &amp;&amp; this.ok()) {</span>
+<span class="fc" id="L672">         return theMapper.apply(this.entity(theType).orElse(null));</span>
+      }
+      else {
+<span class="nc" id="L675">         return theMapper.apply(null);</span>
+      }
+   }
+
+   private &lt;T&gt; Optional&lt;T&gt; entity(final Class&lt;T&gt; theClass) {
+<span class="pc bpc" id="L680" title="1 of 2 branches missed.">      if (this.response.hasEntity()) {</span>
+<span class="pc bpc" id="L681" title="1 of 2 branches missed.">         if (this.response.getEntity() instanceof InputStream) {</span>
+<span class="nc" id="L682">            return Optional.of(this.response.readEntity(theClass));</span>
+         }
+<span class="fc" id="L684">         return Optional.of((T) this.response.getEntity());</span>
+      }
+<span class="nc" id="L686">      return Optional.empty();</span>
+   }
+
+   private &lt;T&gt; Optional&lt;T&gt; entity(final GenericType&lt;T&gt; theType) {
+<span class="pc bpc" id="L690" title="1 of 2 branches missed.">      if (this.response.hasEntity()) {</span>
+<span class="pc bpc" id="L691" title="1 of 2 branches missed.">         if (this.response.getEntity() instanceof InputStream) {</span>
+<span class="nc" id="L692">            return Optional.of(this.response.readEntity(theType));</span>
+         }
+<span class="fc" id="L694">         return Optional.of((T) this.response.getEntity());</span>
+      }
+<span class="nc" id="L696">      return Optional.empty();</span>
+   }
+
+   private &lt;T&gt; Optional&lt;T&gt; entity(final TypeReference&lt;T&gt; theType) {
+<span class="pc bpc" id="L700" title="1 of 2 branches missed.">      if (this.response.hasEntity()) {</span>
+<span class="fc bfc" id="L701" title="All 2 branches covered.">         if (this.response.getEntity() instanceof InputStream) {</span>
+<span class="fc" id="L702">            final var aJSON   = this.response.readEntity(String.class);</span>
+            try {
+<span class="fc" id="L704">               return Optional.of(objectMapper.readValue(aJSON, theType));</span>
+            }
+<span class="nc" id="L706">            catch (IOException e) {</span>
+<span class="nc" id="L707">               return Optional.empty();</span>
+            }
+         }
+         else {
+<span class="fc" id="L711">            return Optional.of((T) this.response.getEntity());</span>
+         }
+      }
+<span class="nc" id="L714">      return Optional.empty();</span>
+   }
+
+   @SuppressWarnings(&quot;AutoBoxing&quot;)
+   private Optional&lt;ErrorCode&lt;?&gt;&gt; errorCode() {
+<span class="pc bpc" id="L719" title="1 of 2 branches missed.">      if (this.response.hasEntity()) {</span>
+<span class="pc bpc" id="L720" title="1 of 2 branches missed.">         if (this.response.getEntity() instanceof ErrorCode) {</span>
+<span class="fc" id="L721">            return Optional.of((ErrorCode&lt;?&gt;) this.response.getEntity());</span>
+         }
+<span class="nc" id="L723">         final var anErrorCodeString = this.response.readEntity(String.class);</span>
+<span class="nc bnc" id="L724" title="All 2 branches missed.">         if (StringUtils.isEmpty(anErrorCodeString)) {</span>
+<span class="nc" id="L725">            return Optional.of(B21040);</span>
+         }
+         else {
+            try {
+<span class="nc" id="L729">               final var anUnquotedString = anErrorCodeString.trim().replace(&quot;\&quot;&quot;, &quot;&quot;);</span>
+<span class="nc" id="L730">               final var anErrorCodeValue = (ErrorCode&lt;?&gt;) MethodUtils.invokeStaticMethod(errorCodeClass, &quot;valueOf&quot;, anUnquotedString);</span>
+<span class="nc bnc" id="L731" title="All 2 branches missed.">               if (anErrorCodeValue == null) {</span>
+<span class="nc" id="L732">                  throw new ResponseError(B21030);</span>
+               }
+<span class="nc" id="L734">               return Optional.of(anErrorCodeValue);</span>
+            }
+<span class="nc" id="L736">            catch (InvocationTargetException ite) {</span>
+               try {
+<span class="nc" id="L738">                  final var aJAXRSResponse = errorCodeObjectMapper.readValue(anErrorCodeString, JAXRSErrorResponse.class);</span>
+<span class="nc" id="L739">                  log.error(&quot;Unexpected JAX-RS error; HTTP status: {}; message: {}&quot;, aJAXRSResponse.getStatusCode(), aJAXRSResponse.getMessage());</span>
+<span class="nc" id="L740">                  return Optional.of(B21010);</span>
+               }
+<span class="nc" id="L742">               catch (IOException ioe) {</span>
+<span class="nc" id="L743">                  log.error(&quot;Unable to unmarshall JAX-RS error; Error message: {}&quot;, Throwables.getRootCause(ioe).getMessage());</span>
+<span class="nc" id="L744">                  return Optional.of(B21020);</span>
+               }
+            }
+<span class="nc" id="L747">            catch (NoSuchMethodException | IllegalAccessException e) {</span>
+<span class="nc" id="L748">               log.error(&quot;Unable to unmarshall error code; Error message: {}&quot;, Throwables.getRootCause(e).getMessage());</span>
+<span class="nc" id="L749">               return Optional.of(B21010);</span>
+            }
+         }
+      }
+<span class="nc" id="L753">      return Optional.of(B21030);</span>
+   }
+
+   /**
+    * Returns the static field.  Used for unit testing only.
+    * @return the initialized {@link ErrorCode} implementation
+    */
+   static Class&lt;? extends Enum&lt;?&gt;&gt; getErrorCodeClass() {
+<span class="fc" id="L761">      return errorCodeClass;</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoggingAspect.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.logging</a> &gt; <span class="el_source">LoggingAspect.java</span></div><h1>LoggingAspect.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.logging;
+
+import lombok.extern.slf4j.Slf4j;
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.AfterThrowing;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+
+/**
+ * Aspect with pointcut defined to capture all project classes and method for logging before and after method execution.
+ * @author Keivan Khalichi
+ */
+@Aspect
+<span class="nc" id="L29">@Slf4j</span>
+<span class="nc" id="L30">class LoggingAspect {</span>
+
+   @Before(&quot;execution(* com..*Impl.*(..))&quot;)
+   public void logImplsBefore(final JoinPoint thePoint) {
+<span class="nc" id="L34">      this.logBefore(thePoint);</span>
+<span class="nc" id="L35">   }</span>
+
+   @After(&quot;execution(* com..*Impl.*(..))&quot;)
+   public void logImplsAfter(final JoinPoint thePoint) {
+<span class="nc" id="L39">      this.logAfter(thePoint);</span>
+<span class="nc" id="L40">   }</span>
+
+   @AfterReturning(pointcut = &quot;execution(* com..*Impl.*(..))&quot;, returning = &quot;theResult&quot;)
+   public void logImplsAfterReturning(final JoinPoint thePoint, final Object theResult) {
+<span class="nc" id="L44">      this.logAfterReturning(thePoint, theResult);</span>
+<span class="nc" id="L45">   }</span>
+
+   @AfterThrowing(pointcut = &quot;execution(* com..*Impl.*(..))&quot;, throwing = &quot;theException&quot;)
+   public void logImplsAfterThrowing(final JoinPoint thePoint, final Throwable theException) {
+<span class="nc" id="L49">      this.logAfterThrowing(thePoint, theException);</span>
+<span class="nc" id="L50">   }</span>
+
+   @Before(&quot;execution(* com..*Manager.*(..))&quot;)
+   public void logManagersBefore(final JoinPoint thePoint) {
+<span class="nc" id="L54">      this.logBefore(thePoint);</span>
+<span class="nc" id="L55">   }</span>
+
+   @After(&quot;execution(* com..*Manager.*(..))&quot;)
+   public void logManagersAfter(final JoinPoint thePoint) {
+<span class="nc" id="L59">      this.logAfter(thePoint);</span>
+<span class="nc" id="L60">   }</span>
+
+   @AfterReturning(pointcut = &quot;execution(* com..*Manager.*(..))&quot;, returning = &quot;theResult&quot;)
+   public void logManagersAfterReturning(final JoinPoint thePoint, final Object theResult) {
+<span class="nc" id="L64">      this.logAfterReturning(thePoint, theResult);</span>
+<span class="nc" id="L65">   }</span>
+
+   @AfterThrowing(pointcut = &quot;execution(* com..*Manager.*(..))&quot;, throwing = &quot;theException&quot;)
+   public void logManagersAfterThrowing(final JoinPoint thePoint, final Throwable theException) {
+<span class="nc" id="L69">      this.logAfterThrowing(thePoint, theException);</span>
+<span class="nc" id="L70">   }</span>
+
+   @Before(&quot;execution(* com..*Repository.*(..))&quot;)
+   public void logRepositoriesBefore(final JoinPoint thePoint) {
+<span class="nc" id="L74">      this.logBefore(thePoint);</span>
+<span class="nc" id="L75">   }</span>
+
+   @After(&quot;execution(* com..*Repository.*(..))&quot;)
+   public void logRepositoriesAfter(final JoinPoint thePoint) {
+<span class="nc" id="L79">      this.logAfter(thePoint);</span>
+<span class="nc" id="L80">   }</span>
+
+   @AfterReturning(pointcut = &quot;execution(* com..*Repository.*(..))&quot;, returning = &quot;theResult&quot;)
+   public void logRepositoryAfterReturning(final JoinPoint thePoint, final Object theResult) {
+<span class="nc" id="L84">      this.logAfterReturning(thePoint, theResult);</span>
+<span class="nc" id="L85">   }</span>
+
+   @AfterThrowing(pointcut = &quot;execution(* com..*Repository*.*(..))&quot;, throwing = &quot;theException&quot;)
+   public void logRepositoriesAfterThrowing(final JoinPoint thePoint, final Throwable theException) {
+<span class="nc" id="L89">      this.logAfterThrowing(thePoint, theException);</span>
+<span class="nc" id="L90">   }</span>
+
+   @Before(&quot;execution(* com..*Consumer.*(..))&quot;)
+   public void logConsumersBefore(final JoinPoint thePoint) {
+<span class="nc" id="L94">      this.logBefore(thePoint);</span>
+<span class="nc" id="L95">   }</span>
+
+   @After(&quot;execution(* com..*Consumer.*(..))&quot;)
+   public void logConsumersAfter(final JoinPoint thePoint) {
+<span class="nc" id="L99">      this.logAfter(thePoint);</span>
+<span class="nc" id="L100">   }</span>
+
+   @AfterReturning(pointcut = &quot;execution(* com..*Consumer.*(..))&quot;, returning = &quot;theResult&quot;)
+   public void logConsumersAfterReturning(final JoinPoint thePoint, final Object theResult) {
+<span class="nc" id="L104">      this.logAfterReturning(thePoint, theResult);</span>
+<span class="nc" id="L105">   }</span>
+
+   @AfterThrowing(pointcut = &quot;execution(* com..*Consumer.*(..))&quot;, throwing = &quot;theException&quot;)
+   public void logConsumersAfterThrowing(final JoinPoint thePoint, final Throwable theException) {
+<span class="nc" id="L109">      this.logAfterThrowing(thePoint, theException);</span>
+<span class="nc" id="L110">   }</span>
+
+   @Before(&quot;execution(* com..*Producer.*(..))&quot;)
+   public void logProducersBefore(final JoinPoint thePoint) {
+<span class="nc" id="L114">      this.logBefore(thePoint);</span>
+<span class="nc" id="L115">   }</span>
+
+   @After(&quot;execution(* com..*Producer.*(..))&quot;)
+   public void logProducersAfter(final JoinPoint thePoint) {
+<span class="nc" id="L119">      this.logAfter(thePoint);</span>
+<span class="nc" id="L120">   }</span>
+
+   @AfterReturning(pointcut = &quot;execution(* com..*Producer.*(..))&quot;, returning = &quot;theResult&quot;)
+   public void logProducersAfterReturning(final JoinPoint thePoint, final Object theResult) {
+<span class="nc" id="L124">      this.logAfterReturning(thePoint, theResult);</span>
+<span class="nc" id="L125">   }</span>
+
+   @AfterThrowing(pointcut = &quot;execution(* com..*Producer.*(..))&quot;, throwing = &quot;theException&quot;)
+   public void logProducersAfterThrowing(final JoinPoint thePoint, final Throwable theException) {
+<span class="nc" id="L129">      this.logAfterThrowing(thePoint, theException);</span>
+<span class="nc" id="L130">   }</span>
+
+   protected void logBefore(final JoinPoint thePoint) {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">      if (log.isDebugEnabled()) {</span>
+<span class="nc" id="L134">         log.debug(&quot;Before {}&quot;, thePoint.getSignature().toShortString());</span>
+      }
+<span class="nc" id="L136">   }</span>
+
+   protected void logAfter(final JoinPoint thePoint) {
+<span class="nc bnc" id="L139" title="All 2 branches missed.">      if (log.isDebugEnabled()) {</span>
+<span class="nc" id="L140">         log.debug(&quot;After {}&quot;, thePoint.getSignature().toShortString());</span>
+      }
+<span class="nc" id="L142">   }</span>
+
+   protected void logAfterReturning(final JoinPoint thePoint, final Object theResult) {
+<span class="nc bnc" id="L145" title="All 2 branches missed.">      if (log.isDebugEnabled()) {</span>
+<span class="nc" id="L146">         log.debug(&quot;After {}, returning [{}] &quot;, thePoint.getSignature().toShortString(), theResult);</span>
+      }
+<span class="nc" id="L148">   }</span>
+
+   protected void logAfterThrowing(final JoinPoint thePoint, final Throwable theException) {
+<span class="nc" id="L151">      log.error(&quot;{} threw {}; message: {}&quot;, thePoint.getSignature().toShortString(), theException.getClass().getName(), theException.getMessage());</span>
+<span class="nc" id="L152">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

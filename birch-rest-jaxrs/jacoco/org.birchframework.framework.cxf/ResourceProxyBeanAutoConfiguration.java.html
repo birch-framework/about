@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResourceProxyBeanAutoConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-rest-jaxrs</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.cxf</a> &gt; <span class="el_source">ResourceProxyBeanAutoConfiguration.java</span></div><h1>ResourceProxyBeanAutoConfiguration.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.cxf;
+
+import java.util.List;
+import java.util.function.Supplier;
+import javax.annotation.PostConstruct;
+import javax.ws.rs.Path;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
+import org.apache.cxf.spring.boot.autoconfigure.CxfAutoConfiguration;
+import org.birchframework.framework.beans.Beans;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.GenericApplicationContext;
+
+/**
+ * For each interface in the classpath annotated with both {@link AutoProxy} and {@link Path}, creates a CXF JAX-RS proxy and registers it with the Spring
+ * bean container. Will not create a proxy bean if there already exists a bean, for example for {@link org.springframework.stereotype.Service} annotated
+ * implementation classes that inherit from respective {@link AutoProxy} annotated interfaces.
+ * The requirement for auto-proxying JAX-RS resources are therefore as follows:
+ * &lt;ul&gt;
+ *    &lt;li&gt;This annotation applied to an &lt;emphasis&gt;interface&lt;/emphasis&gt;&lt;/li&gt;
+ *    &lt;li&gt;{@link javax.ws.rs.Path} must also be present&lt;/li&gt;
+ *    &lt;li&gt;The interface implementation (Impl) is not present as a bean (i.e. {@link org.springframework.stereotype.Service}) within the application context&lt;/li&gt;
+ * &lt;/ul&gt;
+ * Only when these criteria are met will a proxy bean be created and registered for the annotated interface
+ * @see AutoProxy
+ * @author Keivan Khalichi
+ */
+@Configuration
+@EnableAutoConfiguration
+@AutoConfigureAfter(CxfAutoConfiguration.class)
+<span class="fc" id="L50">@RequiredArgsConstructor</span>
+<span class="fc" id="L51">@Slf4j</span>
+@SuppressWarnings(&quot;SpringFacetCodeInspection&quot;)
+public class ResourceProxyBeanAutoConfiguration implements BeanPostProcessor {
+
+   private final GenericApplicationContext   context;
+   private final ResourceClientRequestFilter resourceClientRequestFilter;
+
+   @PostConstruct
+   protected void init() {
+<span class="fc" id="L60">      final var aResourceInterfaces = Beans.classesAnnotatedWith(AutoProxy.class);</span>
+<span class="pc bpc" id="L61" title="2 of 4 branches missed.">      aResourceInterfaces.stream().filter(c -&gt; c.isInterface() &amp;&amp; c.isAnnotationPresent(Path.class)).forEach(clazz -&gt; {</span>
+         try {
+<span class="nc" id="L63">            final var aBean = this.context.getBean(clazz);</span>
+<span class="nc" id="L64">            log.info(&quot;A bean of type {} that satisfies auto-wiring by type for {} already exists in the application context; skipping proxy creation&quot;,</span>
+<span class="nc" id="L65">                     aBean.getClass().getName(),</span>
+<span class="nc" id="L66">                     clazz.getName());</span>
+         }
+<span class="fc" id="L68">         catch (NoSuchBeanDefinitionException nsbde) {</span>
+<span class="fc" id="L69">            this.registerBean(clazz);</span>
+<span class="nc" id="L70">         }</span>
+<span class="fc" id="L71">      });</span>
+<span class="fc" id="L72">   }</span>
+
+   private &lt;T&gt; void registerBean(Class&lt;T&gt; theClass) {
+<span class="fc" id="L75">      final var anEnvironment = this.context.getEnvironment();</span>
+<span class="fc" id="L76">      final var anAutoProxy   = theClass.getAnnotation(AutoProxy.class);</span>
+<span class="fc" id="L77">      final var aBaseURI      = anEnvironment.resolvePlaceholders(anAutoProxy.baseURI());</span>
+<span class="fc" id="L78">      final var aProviders    = List.of(this.resourceClientRequestFilter, anAutoProxy.providers());</span>
+<span class="fc" id="L79">      final var aUserName     = anEnvironment.resolvePlaceholders(anAutoProxy.username());</span>
+<span class="fc" id="L80">      final var aPassword     = anEnvironment.resolvePlaceholders(anAutoProxy.password());</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">      final Supplier&lt;T&gt; aProxySupplier = () -&gt; StringUtils.isBlank(aUserName)</span>
+<span class="fc" id="L82">                                             ? JAXRSClientFactory.create(aBaseURI, theClass, aProviders, anAutoProxy.threadSafe())</span>
+<span class="nc" id="L83">                                             : JAXRSClientFactory.create(aBaseURI, theClass, aProviders, aUserName, aPassword, null);</span>
+<span class="fc" id="L84">      context.registerBean(theClass, aProxySupplier);</span>
+<span class="fc" id="L85">      log.info(&quot;Registered JAX-RS proxy bean of type {}&quot;, theClass.getName());</span>
+<span class="fc" id="L86">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

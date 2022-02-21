@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServiceDependencyHealthIndicator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-rest-jaxrs</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.actuator.health</a> &gt; <span class="el_source">ServiceDependencyHealthIndicator.java</span></div><h1>ServiceDependencyHealthIndicator.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.actuator.health;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import org.birchframework.configuration.BirchProperties;
+import org.birchframework.framework.marshall.MarshallUtils;
+import lombok.RequiredArgsConstructor;
+import org.springframework.boot.actuate.health.Health;
+import org.springframework.boot.actuate.health.Status;
+import org.springframework.context.ApplicationContext;
+import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
+
+/**
+ * Composite Actuator health indicator that checks all of of a service's dependencies.
+ * @author Keivan Khalichi
+ */
+@Component
+<span class="fc" id="L33">@RequiredArgsConstructor</span>
+public class ServiceDependencyHealthIndicator implements BaseHealthIndicator {
+
+   /** Auto-configuration properties */
+   private final BirchProperties properties;
+
+   /** Injection of marshall utils */
+   private final MarshallUtils marshallUtils;
+
+   /** Spring application context */
+   private final ApplicationContext applicationContext;
+
+
+   /**
+    * Checks {@link Health} of all dependencies and reports on {@link Health} of this service/aggregate.
+    * @return composite health assessment of all dependencies
+    */
+   @Override
+   public Health health() {
+      final Health aReturnValue;
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">      if (CollectionUtils.isEmpty(this.properties.getActuator().getUriMap())) {</span>
+<span class="fc" id="L54">         aReturnValue = Health.unknown().build();</span>
+      }
+      else {
+<span class="nc" id="L57">         final Map&lt;String, Health&gt; aHealthMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L58">         this.properties.getActuator().getUriMap().forEach((key,uri) -&gt; {</span>
+            Health aHealth;
+            try {
+<span class="nc" id="L61">               aHealth = this.health((ActuatorResource) this.applicationContext.getBean(key));</span>
+            }
+<span class="nc" id="L63">            catch (Exception e) {</span>
+<span class="nc" id="L64">               aHealth = Health.unknown().withException(e).build();</span>
+<span class="nc" id="L65">            }</span>
+<span class="nc" id="L66">            aHealthMap.put(key, aHealth);</span>
+<span class="nc" id="L67">         });</span>
+         Health.Builder aHealthBuilder;
+<span class="nc bnc" id="L69" title="All 2 branches missed.">         if (aHealthMap.entrySet().stream().anyMatch(e -&gt; e.getValue().getStatus().equals(Status.DOWN))) {</span>
+<span class="nc" id="L70">            aHealthBuilder = Health.down();</span>
+         }
+<span class="nc bnc" id="L72" title="All 2 branches missed.">         else if (aHealthMap.entrySet().stream().anyMatch(e -&gt; e.getValue().getStatus().equals(Status.UNKNOWN))) {</span>
+<span class="nc" id="L73">            aHealthBuilder = Health.unknown();</span>
+         }
+         else {
+<span class="nc" id="L76">            aHealthBuilder = Health.up();</span>
+         }
+<span class="nc" id="L78">         aHealthMap.forEach(aHealthBuilder::withDetail);</span>
+<span class="nc" id="L79">         aReturnValue = aHealthBuilder.build();</span>
+      }
+<span class="fc" id="L81">      return aReturnValue;</span>
+   }
+
+   /** {@inheritDoc} */
+   @Override
+   public Optional&lt;HealthWrapper&gt; unmarshall(final String theEntity) {
+<span class="nc" id="L87">      return this.marshallUtils.deserialize(theEntity, HealthWrapper.class);</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

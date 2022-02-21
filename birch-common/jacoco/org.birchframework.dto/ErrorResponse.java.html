@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ErrorResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.dto</a> &gt; <span class="el_source">ErrorResponse.java</span></div><h1>ErrorResponse.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.dto;
+
+import java.io.Serializable;
+import java.lang.reflect.Type;
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlType;
+import com.google.common.base.Strings;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.springframework.lang.NonNull;
+
+import static javax.xml.bind.annotation.XmlAccessType.FIELD;
+import static lombok.AccessLevel.PRIVATE;
+
+/**
+ * Data structure used for service and messaging error responses.  Responsible for returning error response when the request is not valid.
+ * @author Keivan Khalichi
+ */
+@XmlRootElement
+@XmlAccessorType(FIELD)
+@XmlType(propOrder = {
+        &quot;code&quot;,
+        &quot;message&quot;
+})
+@NoArgsConstructor(access = PRIVATE)
+@SuppressWarnings(&quot;InstanceVariableMayNotBeInitialized&quot;)
+public class ErrorResponse&lt;E extends Enum&lt;E&gt; &amp; ErrorCode&lt;E&gt;&gt; implements Serializable, Type {
+
+   /** Error code */
+<span class="nc" id="L44">   @Getter</span>
+   private E code;
+
+   /** String property for error message */
+<span class="nc" id="L48">   @Getter</span>
+   private String message;
+
+   /**
+    * Constructor that defaults to {@link BirchErrorCode#getDescription()} for the {@link #message}.
+    * @param theCode error code
+    */
+   public ErrorResponse(@NonNull final E theCode) {
+<span class="fc" id="L56">      super();</span>
+<span class="fc" id="L57">      this.code = theCode;</span>
+<span class="fc" id="L58">      this.message = theCode.getDescription();</span>
+<span class="fc" id="L59">   }</span>
+
+   /**
+    * Constructor with code and message properties
+    * @param theCode the error code
+    * @param message the customized message; if null defaults to code description
+    */
+   public ErrorResponse(@NonNull final E theCode, final String message) {
+<span class="nc" id="L67">      super();</span>
+<span class="nc" id="L68">      this.code = theCode;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">      this.message = Strings.isNullOrEmpty(message) ? theCode.getDescription() : message;</span>
+<span class="nc" id="L70">   }</span>
+
+   /**
+    * getter method for component property
+    * @return
+    */
+   public Component getComponent() {
+<span class="nc" id="L77">      return this.code.getComponent();</span>
+   }
+
+   /**
+    * Constructs a formatted string representation of the error.
+    * @return formatted string in the format [component].[code]: [message]
+    */
+   @Override
+   public String toString() {
+<span class="nc" id="L86">      return String.format(&quot;%s.%s: %s&quot;, this.getComponent(), this.getCode(), this.getMessage());</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

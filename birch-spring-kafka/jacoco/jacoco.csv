@@ -1,0 +1,6 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+birch-spring-kafka,org.birchframework.framework.kafka,KafkaSendResult,22,6,0,0,9,3,4,2,4,2
+birch-spring-kafka,org.birchframework.framework.kafka,KafkaSender,93,106,0,0,22,23,6,11,6,11
+birch-spring-kafka,org.birchframework.framework.kafka,PayloadDeserializer,51,0,6,0,15,0,6,0,3,0
+birch-spring-kafka,org.birchframework.framework.kafka,KafkaSendError,18,0,0,0,8,0,4,0,4,0
+birch-spring-kafka,org.birchframework.framework.kafka,PayloadSerializer,48,0,6,0,15,0,6,0,3,0

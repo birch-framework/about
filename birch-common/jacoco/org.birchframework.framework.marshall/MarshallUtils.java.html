@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MarshallUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-common</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.marshall</a> &gt; <span class="el_source">MarshallUtils.java</span></div><h1>MarshallUtils.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.marshall;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import javax.validation.constraints.NotNull;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
+import javax.xml.bind.Unmarshaller;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.transform.sax.SAXSource;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+import org.springframework.stereotype.Component;
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
+
+import static org.birchframework.dto.BirchErrorCode.*;
+
+/**
+ * (Un)Marshalling utility methods.  Must import {@link org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration}
+ * in order to use.
+ * @author Keivan Khalichi
+ * @see org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
+ */
+@Component
+<span class="fc" id="L54">@Slf4j</span>
+@SuppressWarnings({&quot;unused&quot;, &quot;unchecked&quot;, &quot;AutoBoxing&quot;})
+public class MarshallUtils {
+
+   /** Synchronized cache of {@link JAXBContext} instances */
+<span class="fc" id="L59">   private final Map&lt;Class&lt;?&gt;, JAXBContext&gt; jaxbContextCache = new ConcurrentHashMap&lt;&gt;();</span>
+   private final ObjectMapper               objectMapper;
+
+<span class="fc" id="L62">   public MarshallUtils(final Jackson2ObjectMapperBuilder theObjectMapperBuilder) {</span>
+<span class="fc" id="L63">      this.objectMapper = theObjectMapperBuilder.build();</span>
+<span class="fc" id="L64">   }</span>
+
+   /**
+    * Unmarshall XML data given class and file.
+    * @param theFile the XML data to be unmarshalled
+    * @param theClass the target class
+    * @param &lt;T&gt; the type of the class
+    * @return instance of the unmarshalled object
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromXML(final File theFile, final Class&lt;T&gt; theClass) throws MarshallingError {
+      final Optional&lt;T&gt; aReturnValue;
+<span class="pc bpc" id="L76" title="2 of 4 branches missed.">      if (theFile != null &amp;&amp; theFile.exists()) {</span>
+<span class="fc" id="L77">         try (InputStream aFileIS = new FileInputStream(theFile)) {</span>
+<span class="fc" id="L78">            aReturnValue = this.fromXML(aFileIS, theClass);</span>
+         }
+<span class="nc" id="L80">         catch (IOException e) {</span>
+<span class="nc" id="L81">            throw new MarshallingError(B10120, e);</span>
+<span class="fc" id="L82">         }</span>
+      }
+      else {
+<span class="nc" id="L85">         throw new MarshallingError(B20130);</span>
+      }
+<span class="fc" id="L87">      return aReturnValue;</span>
+   }
+
+   /**
+    * Unmarshall XML data given class and data.
+    * @param theData the XML data to be unmarshalled
+    * @param theClass the target class
+    * @param &lt;T&gt; the type of the class
+    * @return instance of the unmarshalled object
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromXML(final String theData, final Class&lt;T&gt; theClass) throws MarshallingError {
+<span class="fc" id="L99">      return this.fromXML(theData.getBytes(), theClass);</span>
+   }
+
+   /**
+    * Unmarshall XML data given class and data.
+    * @param theData the XML data to be unmarshalled
+    * @param theClass the target class
+    * @param &lt;T&gt; the type of the class
+    * @return instance of the unmarshalled object
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromXML(final byte[] theData, final Class&lt;T&gt; theClass) throws MarshallingError {
+      final Optional&lt;T&gt; aReturnValue;
+<span class="fc" id="L112">      try (InputStream aBytesIS = new ByteArrayInputStream(theData)) {</span>
+<span class="fc" id="L113">         aReturnValue = this.fromXML(aBytesIS, theClass);</span>
+      }
+<span class="nc" id="L115">      catch (IOException e) {</span>
+<span class="nc" id="L116">         throw new MarshallingError(B10120, e);</span>
+<span class="fc" id="L117">      }</span>
+<span class="fc" id="L118">      return aReturnValue;</span>
+   }
+
+   /**
+    * Unmarshall XML data given class and data.
+    * @param theData the XML data to be unmarshalled
+    * @param theClass the target class
+    * @param &lt;T&gt; the type of the class
+    * @return instance of the unmarshalled object
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromXML(final InputStream theData, final Class&lt;T&gt; theClass) throws MarshallingError {
+      final Optional&lt;T&gt; aReturnValue;
+      try {
+<span class="fc" id="L132">         final Unmarshaller anUnmarshaller = this.unmarshaller(theClass);</span>
+<span class="fc" id="L133">         aReturnValue = Optional.of((T) anUnmarshaller.unmarshal(theData));</span>
+      }
+<span class="nc" id="L135">      catch (Exception e) {</span>
+<span class="nc" id="L136">         throw new MarshallingError(B10120, e);</span>
+<span class="fc" id="L137">      }</span>
+<span class="fc" id="L138">      return aReturnValue;</span>
+   }
+
+   /**
+    * Unmarshall XML data given class and file; is not namespace-aware and not validating.
+    * @param theFile the XML data to be unmarshalled
+    * @param theClass the target class
+    * @param &lt;T&gt; the type of the class
+    * @return instance of the unmarshalled object
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromXMLNSUnawareNonValidating(final File theFile, final Class&lt;T&gt; theClass) throws MarshallingError {
+      final Optional&lt;T&gt; aReturnValue;
+<span class="nc bnc" id="L151" title="All 4 branches missed.">      if (theFile != null &amp;&amp; theFile.exists()) {</span>
+<span class="nc" id="L152">         try (InputStream aFileIS = new FileInputStream(theFile)) {</span>
+<span class="nc" id="L153">            aReturnValue = this.fromXML(aFileIS, theClass, false, false);</span>
+         }
+<span class="nc" id="L155">         catch (IOException e) {</span>
+<span class="nc" id="L156">            throw new MarshallingError(B10120, e);</span>
+<span class="nc" id="L157">         }</span>
+      }
+      else {
+<span class="nc" id="L160">         throw new MarshallingError(B20130);</span>
+      }
+<span class="nc" id="L162">      return aReturnValue;</span>
+   }
+
+   /**
+    * Unmarshall XML data given class and data; name-space awareness and validating parser are configurable.
+    * @param theData the XML data to be unmarshalled
+    * @param theClass the target class
+    * @param theIsNamespaceAware enable/disable name-space awareness
+    * @param theIsValidating enable/disable validating parser
+    * @param &lt;T&gt; the type of the class
+    * @return instance of the unmarshalled object
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromXML(final InputStream theData, final Class&lt;T&gt; theClass,
+                                  final boolean theIsNamespaceAware, final boolean theIsValidating) throws MarshallingError {
+
+      final Optional&lt;T&gt; aReturnValue;
+<span class="fc" id="L179">      final SAXParserFactory aSAXParserFactory = SAXParserFactory.newInstance();</span>
+
+<span class="fc" id="L181">      aSAXParserFactory.setNamespaceAware(theIsNamespaceAware);</span>
+<span class="fc" id="L182">      aSAXParserFactory.setValidating(theIsValidating);</span>
+      final SAXParser aSAXParser;
+      final SAXSource aSource;
+      try {
+<span class="fc" id="L186">         aSAXParser = aSAXParserFactory.newSAXParser();</span>
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">         if (log.isDebugEnabled()) {</span>
+<span class="nc" id="L188">            log.debug(&quot;{}.isNamespaceAware() = {}&quot;, aSAXParser.getClass().getName(), aSAXParser.isNamespaceAware());</span>
+         }
+<span class="fc" id="L190">         final XMLReader anXMLReader = aSAXParser.getXMLReader();</span>
+<span class="fc" id="L191">         aSource = new SAXSource(anXMLReader, new InputSource(theData));</span>
+      }
+<span class="nc" id="L193">      catch (ParserConfigurationException | SAXException e) {</span>
+<span class="nc" id="L194">         throw new MarshallingError(B10120, e);</span>
+<span class="fc" id="L195">      }</span>
+
+      try {
+<span class="fc" id="L198">         final Unmarshaller anUnmarshaller = this.unmarshaller(theClass);</span>
+<span class="fc" id="L199">         aReturnValue = Optional.of((T) anUnmarshaller.unmarshal(aSource));</span>
+      }
+<span class="nc" id="L201">      catch (JAXBException e) {</span>
+<span class="nc" id="L202">         throw new MarshallingError(B10120, e);</span>
+<span class="fc" id="L203">      }</span>
+<span class="fc" id="L204">      return aReturnValue;</span>
+   }
+
+   /**
+    * Unmarshall an XML document given class and data; name-space awareness and validating parser are configurable.  This is a DOM implementation that
+    * uses {@link DocumentBuilder}.
+    * @param theDocument the XML data to be unmarshalled
+    * @param theClass the target class
+    * @param &lt;T&gt; the type of the class
+    * @return instance of the unmarshalled object
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromXMLDocument(final Document theDocument, final Class&lt;T&gt; theClass) throws MarshallingError {
+      final Optional&lt;T&gt; aReturnValue;
+      try {
+<span class="nc" id="L219">         final Unmarshaller anUnmarshaller = this.unmarshaller(theClass);</span>
+<span class="nc" id="L220">         aReturnValue = Optional.of((T) anUnmarshaller.unmarshal(theDocument));</span>
+      }
+<span class="nc" id="L222">      catch (JAXBException e) {</span>
+<span class="nc" id="L223">         throw new MarshallingError(B10120, e);</span>
+<span class="nc" id="L224">      }</span>
+<span class="nc" id="L225">      return aReturnValue;</span>
+   }
+
+   /**
+    * Parses an XML document given class and data; name-space awareness and validating parser are configurable.  This is a DOM implementation that
+    * uses {@link DocumentBuilder}.
+    * @param theData the XML data to be unmarshalled
+    * @param theIsNamespaceAware enable/disable name-space awareness
+    * @param theIsValidating enable/disable validating parser
+    * @return instance of a DOM document object
+    * @throws MarshallingError if there are any exceptions
+    */
+   public Document parse(final InputStream theData, final boolean theIsNamespaceAware, final boolean theIsValidating) throws MarshallingError {
+      final Document aReturnValue;
+      try {
+<span class="fc" id="L240">         final DocumentBuilderFactory aDocumentBuilderFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="fc" id="L241">         aDocumentBuilderFactory.setFeature(&quot;http://apache.org/xml/features/disallow-doctype-decl&quot;, true);</span>
+<span class="fc" id="L242">         aDocumentBuilderFactory.setNamespaceAware(theIsNamespaceAware);</span>
+<span class="fc" id="L243">         aDocumentBuilderFactory.setValidating(theIsValidating);</span>
+<span class="fc" id="L244">         final DocumentBuilder aDocumentBuilder = aDocumentBuilderFactory.newDocumentBuilder();</span>
+<span class="fc" id="L245">         aReturnValue = aDocumentBuilder.parse(theData);</span>
+      }
+<span class="nc" id="L247">      catch (IOException | ParserConfigurationException | SAXException e) {</span>
+<span class="nc" id="L248">         throw new MarshallingError(B10120, e);</span>
+<span class="fc" id="L249">      }</span>
+<span class="fc" id="L250">      return aReturnValue;</span>
+   }
+
+   /**
+    * Marshall a class to an XML string.
+    * @param theObject the object to be marshalled
+    * @param &lt;T&gt; the type of the object
+    * @return string representation of the marshalled XML
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;String&gt; toXML(final T theObject) throws MarshallingError {
+      final Optional&lt;String&gt; aReturnValue;
+<span class="fc" id="L262">      try (StringWriter anXMLWriter = new StringWriter()) {</span>
+<span class="fc" id="L263">         final JAXBContext aJAXBContext = this.jaxbContextFor(theObject.getClass());</span>
+<span class="fc" id="L264">         final Marshaller aMarshaller = aJAXBContext.createMarshaller();</span>
+<span class="fc" id="L265">         aMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);</span>
+<span class="fc" id="L266">         aMarshaller.marshal(theObject, anXMLWriter);</span>
+<span class="fc" id="L267">         anXMLWriter.flush();</span>
+<span class="fc" id="L268">         aReturnValue = Optional.of(anXMLWriter.toString());</span>
+      }
+<span class="nc" id="L270">      catch (Exception e) {</span>
+<span class="nc" id="L271">         throw new MarshallingError(B20140, e);</span>
+<span class="fc" id="L272">      }</span>
+<span class="fc" id="L273">      return aReturnValue;</span>
+   }
+
+   /**
+    * Unmarshall JSON to object
+    * @param theData the data input stream
+    * @param theClass the target type's class
+    * @param &lt;T&gt; the target type
+    * @return optional value of the target
+    * @throws MarshallingError if there are unmarshalling exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromJSON(final byte[] theData, final Class&lt;T&gt; theClass) throws MarshallingError {
+      final Optional&lt;T&gt; aReturnValue;
+<span class="fc" id="L286">      try (InputStream aBytesIS = new ByteArrayInputStream(theData)) {</span>
+<span class="fc" id="L287">         aReturnValue = this.fromJSON(aBytesIS, theClass);</span>
+      }
+<span class="nc" id="L289">      catch (IOException e) {</span>
+<span class="nc" id="L290">         throw new MarshallingError(B20110, e);</span>
+<span class="fc" id="L291">      }</span>
+<span class="fc" id="L292">      return aReturnValue;</span>
+   }
+
+   /**
+    * Unmarshall JSON to object
+    * @param theData the data input stream
+    * @param theClass the target type's class
+    * @param &lt;T&gt; the target type
+    * @return optional value of the target
+    * @throws MarshallingError if there are unmarshalling exceptions
+    */
+   public &lt;T&gt; Optional&lt;T&gt; fromJSON(final InputStream theData, final Class&lt;T&gt; theClass) throws MarshallingError {
+      final Optional&lt;T&gt; aReturnValue;
+      try {
+<span class="fc" id="L306">         aReturnValue = Optional.of(this.objectMapper.readValue(theData, theClass));</span>
+      }
+<span class="nc" id="L308">      catch (Exception e) {</span>
+<span class="nc" id="L309">         throw new MarshallingError(B20110, e);</span>
+<span class="fc" id="L310">      }</span>
+<span class="fc" id="L311">      return aReturnValue;</span>
+   }
+
+   /**
+    * Marshall a class to JSON string.
+    * @param theObject the object to be marshalled
+    * @param &lt;T&gt; the type of the object
+    * @return string representation of the marshalled JSON
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;String&gt; toJSON(final T theObject) throws MarshallingError {
+      final Optional&lt;String&gt; aReturnValue;
+      try {
+<span class="fc" id="L324">         final var aString = this.objectMapper.writeValueAsString(theObject);</span>
+<span class="fc" id="L325">         aReturnValue = Optional.of(aString);</span>
+      }
+<span class="nc" id="L327">      catch (Exception e) {</span>
+<span class="nc" id="L328">         throw new MarshallingError(B20110, e);</span>
+<span class="fc" id="L329">      }</span>
+<span class="fc" id="L330">      return aReturnValue;</span>
+   }
+
+   /**
+    * Marshall a class to JSON byte array.
+    * @param theObject the object to be marshalled
+    * @param &lt;T&gt; the type of the object
+    * @return byte array representation of the marshalled JSON
+    * @throws MarshallingError if there are any exceptions
+    */
+   public &lt;T&gt; Optional&lt;byte[]&gt; toJSONBytes(final T theObject) throws MarshallingError {
+      final Optional&lt;byte[]&gt; aReturnValue;
+      try  {
+<span class="nc" id="L343">         final var aBytes = this.objectMapper.writeValueAsBytes(theObject);</span>
+<span class="nc" id="L344">         aReturnValue = Optional.of(aBytes);</span>
+      }
+<span class="nc" id="L346">      catch (Exception e) {</span>
+<span class="nc" id="L347">         throw new MarshallingError(B20110, e);</span>
+<span class="nc" id="L348">      }</span>
+<span class="nc" id="L349">      return aReturnValue;</span>
+   }
+
+   /**
+    * Convenience method to serialize an object to JSON, but does not throw an exception.
+    * @param theObject the object to be serialized
+    * @param &lt;T&gt; the type of the object
+    * @return the serialized object as a JSON string
+    * @see #toJSON(Object)
+    */
+   public &lt;T&gt; Optional&lt;String&gt; serialize(final T theObject) {
+      try {
+<span class="fc" id="L361">         return this.toJSON(theObject);</span>
+      }
+<span class="nc" id="L363">      catch (MarshallingError e) {</span>
+<span class="nc" id="L364">         log.error(&quot;An error occurred while attempting to serialize {}.  Error message: {}&quot;,</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">                   theObject, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());</span>
+<span class="nc" id="L366">         return Optional.empty();</span>
+      }
+   }
+
+   /**
+    * Convenience method to deserialize an object from JSON, but does not throw an exception.
+    * @param theJSONString the JSON string
+    * @param &lt;T&gt; the type of the object to be deserialized
+    * @return the deserialized object
+    * @see #toJSON(Object)
+    */
+   public &lt;T&gt; Optional&lt;T&gt; deserialize(@NotNull final String theJSONString, @NotNull final Class&lt;T&gt; theTargetClass) {
+      try {
+<span class="fc" id="L379">         return this.fromJSON(theJSONString.getBytes(), theTargetClass);</span>
+      }
+<span class="nc" id="L381">      catch (MarshallingError e) {</span>
+<span class="nc" id="L382">         log.error(&quot;An error occurred while attempting to deserialize {}.  Error message: {}&quot;,</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">                   theJSONString, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());</span>
+<span class="nc" id="L384">         return Optional.empty();</span>
+      }
+   }
+
+   /**
+    * Convenience method to deserialize an object from JSON, but does not throw an exception.
+    * @param theJSONBytes the JSON byte array
+    * @param &lt;T&gt; the type of the object to be deserialized
+    * @return the deserialized object
+    * @see #toJSON(Object)
+    */
+   public &lt;T&gt; Optional&lt;T&gt; deserialize(@NotNull final byte[] theJSONBytes, @NotNull final Class&lt;T&gt; theTargetClass) {
+      try {
+<span class="nc" id="L397">         return this.fromJSON(theJSONBytes, theTargetClass);</span>
+      }
+<span class="nc" id="L399">      catch (MarshallingError e) {</span>
+<span class="nc" id="L400">         log.error(&quot;An error occurred while attempting to deserialize {}.  Error message: {}&quot;,</span>
+<span class="nc bnc" id="L401" title="All 2 branches missed.">                   theJSONBytes, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());</span>
+<span class="nc" id="L402">         return Optional.empty();</span>
+      }
+   }
+
+   /**
+    * Helper method
+    */
+   private &lt;T&gt; JAXBContext jaxbContextFor(Class&lt;T&gt; theClass) throws JAXBException {
+      final JAXBContext aReturnValue;
+<span class="fc bfc" id="L411" title="All 2 branches covered.">      if (this.jaxbContextCache.containsKey(theClass)) {</span>
+<span class="fc" id="L412">         aReturnValue = this.jaxbContextCache.get(theClass);</span>
+      }
+      else {
+<span class="fc" id="L415">         aReturnValue = JAXBContext.newInstance(theClass);</span>
+<span class="fc" id="L416">         this.jaxbContextCache.put(theClass, aReturnValue);</span>
+      }
+<span class="fc" id="L418">      return aReturnValue;</span>
+   }
+
+   private &lt;T&gt; Unmarshaller unmarshaller(Class&lt;T&gt; theTargetClass) throws MarshallingError {
+      final Unmarshaller aReturnValue;
+      try {
+<span class="fc" id="L424">         final JAXBContext aJAXBContext = this.jaxbContextFor(theTargetClass);</span>
+<span class="fc" id="L425">         aReturnValue = aJAXBContext.createUnmarshaller();</span>
+      }
+<span class="nc" id="L427">      catch (JAXBException e) {</span>
+<span class="nc" id="L428">         throw new MarshallingError(B10120, e);</span>
+<span class="fc" id="L429">      }</span>
+<span class="fc" id="L430">      return aReturnValue;</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

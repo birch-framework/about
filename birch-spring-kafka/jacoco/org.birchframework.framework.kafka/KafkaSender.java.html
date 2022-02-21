@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KafkaSender.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-spring-kafka</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.kafka</a> &gt; <span class="el_source">KafkaSender.java</span></div><h1>KafkaSender.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.kafka;
+
+import java.io.Serializable;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import org.birchframework.configuration.BirchProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
+import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
+import org.springframework.util.concurrent.FailureCallback;
+import org.springframework.util.concurrent.SuccessCallback;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
+/**
+ * Customized Kafka producer.  Supports:
+ * &lt;ul&gt;
+ *    &lt;li&gt;Synchronous&lt;/li&gt;
+ *    &lt;li&gt;Synchronous transactional&lt;/li&gt;
+ *    &lt;li&gt;Asynchronous&lt;/li&gt;
+ *    &lt;li&gt;Asynchronous transactional&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;p/&gt;
+ * Available configurations are:
+ * &lt;pre&gt;
+ * birch:
+ *   kafka:
+ *     sender:
+ *       wait-time: 2s                    # duration of wait time to wait for response when sending synchronously; default is 2 seconds
+ *       allow-non-transactional: true    # whether to configure the Kafka template to allows sending outside of a transaction context; default is true
+ * &lt;/pre&gt;
+ * @param &lt;K&gt; type of key
+ * @param &lt;V&gt; type of value
+ * @author Keivan Khalichi
+ */
+@SuppressWarnings({&quot;ConstantConditions&quot;, &quot;unused&quot;})
+@Component
+@ConditionalOnClass(KafkaTemplate.class)
+@EnableConfigurationProperties(BirchProperties.class)
+public class KafkaSender&lt;K extends String, V extends Serializable&gt; {
+
+   /** Instance of {@link KafkaTemplate} */
+   private final KafkaTemplate&lt;K,V&gt; kafkaTemplate;
+
+   private final long waitTimeMillis;
+
+   /**
+    * Construct this sender using the provided {@link KafkaTemplate} and {@link BirchProperties}.
+    * By default, the instance is not transactional.
+    */
+<span class="fc" id="L70">   public KafkaSender(final KafkaTemplate&lt;K,V&gt; theTemplate, final BirchProperties theProperties) {</span>
+<span class="fc" id="L71">      this.kafkaTemplate = theTemplate;</span>
+<span class="fc" id="L72">      final var aSenderProperties = theProperties.getKafka().getSender();</span>
+<span class="fc" id="L73">      this.waitTimeMillis = aSenderProperties.getWaitTime().toMillis();</span>
+<span class="fc" id="L74">      this.kafkaTemplate.setAllowNonTransactional(aSenderProperties.isAllowNonTransactional());</span>
+<span class="fc" id="L75">   }</span>
+
+   /**
+    * Send message, synchronously.
+    * @param topic topic name
+    * @param key message key
+    * @param data a message payload implementing {@link Serializable}
+    * @throws InterruptedException rethrow when waiting to get results throws the exception
+    * @return result, if there are no exceptions
+    */
+   public Optional&lt;KafkaSendResult&lt;K,V&gt;&gt; send(final String topic, final K key, final V data) throws InterruptedException {
+<span class="fc" id="L86">      return this.send(topic, null, key, data);</span>
+   }
+
+   /**
+    * Send message, synchronously.
+    * @param topic topic name
+    * @param data a message payload implementing {@link Serializable}
+    * @throws InterruptedException rethrow when waiting to get results throws the exception
+    * @return result, if there are no exceptions
+    */
+   public Optional&lt;KafkaSendResult&lt;K,V&gt;&gt; send(final String topic, final V data) throws InterruptedException {
+<span class="fc" id="L97">      return this.send(topic, null, null, data);</span>
+   }
+
+   /**
+    * Send message, synchronously.
+    * @param topic topic name
+    * @param key message key
+    * @param data a message payload implementing {@link Serializable}
+    * @throws InterruptedException rethrow when waiting to get results throws the exception
+    * @return result, if there are no exceptions
+    */
+   public Optional&lt;KafkaSendResult&lt;K,V&gt;&gt; send(@Nonnull final String topic, @Nullable final Integer partition, @Nullable final K key, @Nonnull final V data)
+          throws InterruptedException {
+<span class="fc" id="L110">      final var aResult = new KafkaSendResult&lt;K,V&gt;();</span>
+      try {
+<span class="fc" id="L112">         aResult.result = this.kafkaTemplate.send(topic, partition, key, data).get(this.waitTimeMillis, MILLISECONDS);</span>
+      }
+<span class="nc" id="L114">      catch (InterruptedException e) {</span>
+<span class="nc" id="L115">         aResult.hasError = true;</span>
+<span class="nc" id="L116">         aResult.exception = e;</span>
+<span class="nc" id="L117">         throw e;</span>
+      }
+<span class="nc" id="L119">      catch (ExecutionException | TimeoutException e) {</span>
+<span class="nc" id="L120">         aResult.hasError = true;</span>
+<span class="nc" id="L121">         aResult.exception = e;</span>
+<span class="fc" id="L122">      }</span>
+<span class="fc" id="L123">      return Optional.ofNullable(aResult);</span>
+   }
+
+   /**
+    * Send message synchronously and within a transaction.
+    * @param topic topic name
+    * @param key message key
+    * @param data a message payload implementing {@link Serializable}
+    * @throws InterruptedException rethrow when waiting to get results throws the exception
+    * @return result, if there are no exceptions
+    */
+   public Optional&lt;KafkaSendResult&lt;K,V&gt;&gt; sendTransactional(@Nonnull final String topic, @Nullable final Integer partition,
+                                                           @Nullable final K key, @Nonnull final V data) {
+<span class="nc" id="L136">      final var aReturnValue = new KafkaSendResult&lt;K,V&gt;();</span>
+<span class="nc" id="L137">      aReturnValue.result = this.kafkaTemplate.executeInTransaction(operations -&gt; {</span>
+         SendResult&lt;K,V&gt; aResult;
+         try {
+<span class="nc" id="L140">            aResult = operations.send(topic, partition, key, data).get(this.waitTimeMillis, MILLISECONDS);</span>
+         }
+<span class="nc" id="L142">         catch (InterruptedException | ExecutionException | TimeoutException e) {</span>
+<span class="nc" id="L143">            aReturnValue.hasError = true;</span>
+<span class="nc" id="L144">            aReturnValue.exception = e;</span>
+<span class="nc" id="L145">            aResult = new SendResult&lt;&gt;(null, null);</span>
+<span class="nc" id="L146">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L147">         }</span>
+<span class="nc" id="L148">         return aResult;</span>
+      });
+<span class="nc" id="L150">      return Optional.of(aReturnValue);</span>
+   }
+
+   /**
+    * Sends message to topic asynchronously.
+    * @param topic the topic
+    * @param data a message payload implementing {@link Serializable}
+    */
+   public void sendAsync(final String topic, final V data) {
+<span class="pc" id="L159">      this.sendAsync(topic, null, null, data, r -&gt; {}, e -&gt; {});</span>
+<span class="fc" id="L160">   }</span>
+
+   /**
+    * Sends message to topic asynchronously with provided callbacks.
+    * @param topic the topic
+    * @param data a message payload implementing {@link Serializable}
+    * @param successCallback the callback to call upon success
+    */
+   public void sendAsync(final String topic, final V data, final SuccessCallback&lt;SendResult&lt;K,V&gt;&gt; successCallback, final FailureCallback failureCallback) {
+<span class="fc" id="L169">      this.sendAsync(topic, null, null, data, successCallback, failureCallback);</span>
+<span class="fc" id="L170">   }</span>
+
+   /**
+    * Method to send message, asynchronously.
+    * @param topic topic name
+    * @param key message key
+    * @param data a message payload implementing {@link Serializable}
+    */
+   public void sendAsync(final String topic, final K key, final V data) {
+<span class="pc" id="L179">      this.sendAsync(topic, key, data, r -&gt; {}, e -&gt; {});</span>
+<span class="fc" id="L180">   }</span>
+
+   /**
+    * Sends message to topic asynchronously with provided callbacks.
+    * @param topic the topic
+    * @param key the message key
+    * @param data a message payload implementing {@link Serializable}
+    * @param successCallback the callback to call upon success
+    */
+   public void sendAsync(final String topic, final K key, final V data,
+                         final SuccessCallback&lt;SendResult&lt;K,V&gt;&gt; successCallback, final FailureCallback failureCallback) {
+<span class="fc" id="L191">      this.sendAsync(topic, null, key, data, successCallback, failureCallback);</span>
+<span class="fc" id="L192">   }</span>
+
+   /**
+    * Sends message to topic asynchronously, not transactional, and with provided callbacks.
+    * @param topic the topic
+    * @param partition the topic partition
+    * @param key the key
+    * @param data a message payload implementing {@link Serializable}
+    * @param successCallback the callback to call upon success
+    */
+   public void sendAsync(@Nonnull final String topic, @Nullable final Integer partition, @Nullable final K key, @Nonnull final V data,
+                         @Nonnull final SuccessCallback&lt;SendResult&lt;K,V&gt;&gt; successCallback, final FailureCallback failureCallback) {
+<span class="fc" id="L204">      final var aFuture = this.kafkaTemplate.send(topic, partition, key, data);</span>
+<span class="fc" id="L205">      aFuture.addCallback(successCallback, failureCallback);</span>
+<span class="fc" id="L206">   }</span>
+
+   /**
+    * Sends message to topic asynchronously and within a Kafka transaction, with provided callbacks.
+    * @param topic the topic
+    * @param partition the topic partition
+    * @param key the key
+    * @param data a message payload implementing {@link Serializable}
+    * @param successCallback the callback to call upon success
+    */
+   public void sendAsyncTransactional(@Nonnull final String topic, @Nullable final Integer partition, @Nullable final K key, @Nonnull final V data,
+                                      @Nonnull final SuccessCallback&lt;SendResult&lt;K,V&gt;&gt; successCallback, final FailureCallback failureCallback) {
+<span class="nc" id="L218">      final var aFuture = this.kafkaTemplate.executeInTransaction(operations -&gt; operations.send(topic, partition, key, data));</span>
+<span class="nc" id="L219">      Assert.notNull(aFuture, &quot;Future returned by Kafka Template is null&quot;);</span>
+<span class="nc" id="L220">      aFuture.addCallback(successCallback, failureCallback);</span>
+<span class="nc" id="L221">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

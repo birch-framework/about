@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseHealthIndicator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-rest-jaxrs</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.actuator.health</a> &gt; <span class="el_source">BaseHealthIndicator.java</span></div><h1>BaseHealthIndicator.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.actuator.health;
+
+import java.util.Optional;
+import javax.ws.rs.core.Response;
+import org.birchframework.framework.jaxrs.Responses;
+import org.birchframework.framework.marshall.MarshallingError;
+import org.springframework.boot.actuate.health.Health;
+import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.actuate.health.Status;
+
+/**
+ * Base interface for Actuator {@link HealthIndicator} implementations.
+ *
+ * @author Keivan Khalichi
+ */
+public interface BaseHealthIndicator extends HealthIndicator {
+
+   /**
+    * Default implementation to be used by implementations.  Overloads {@link #health()} from {@link HealthIndicator}.
+    *
+    * @param theActuatorResource instance of {@link ActuatorResource} specific for the health check being conducted
+    * @return health of target {@link ActuatorResource}
+    */
+   default Health health(final ActuatorResource theActuatorResource) {
+<span class="nc" id="L38">      final Response aHealthResponse = theActuatorResource.health();</span>
+<span class="nc bnc" id="L39" title="All 4 branches missed.">      switch (aHealthResponse.getStatusInfo().toEnum()) {</span>
+         case OK:
+<span class="nc" id="L41">            return Responses.of(aHealthResponse).map(</span>
+               String.class,
+<span class="nc" id="L43">               e -&gt; this.unmarshall(e).map(healthWrapper -&gt; {</span>
+<span class="nc" id="L44">                  final Health aHealth = healthWrapper.build();</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">                  if (Status.UP.equals(aHealth.getStatus())) {</span>
+<span class="nc" id="L46">                     return Health.up().build();</span>
+                  }
+<span class="nc bnc" id="L48" title="All 2 branches missed.">                  else if (Status.DOWN.equals(aHealth.getStatus())) {</span>
+<span class="nc" id="L49">                     return Health.down().build();</span>
+                  }
+                  else {
+<span class="nc" id="L52">                     return Health.unknown().build();</span>
+                  }
+<span class="nc" id="L54">               }).orElseGet(() -&gt; Health.unknown().build())</span>
+            );
+         case NOT_FOUND:
+<span class="nc" id="L57">            return Health.down().build();</span>
+         case INTERNAL_SERVER_ERROR:
+<span class="nc" id="L59">            return Health.outOfService().build();</span>
+         case NO_CONTENT:
+         default:
+<span class="nc" id="L62">            return Health.unknown().build();</span>
+      }
+   }
+
+   /**
+    * Provides a hook for implementers to unmarshall the an entity using injected mechanisms.
+    * @param theEntity the entity to be unmarshelled
+    * @return the unmarshalled health wrapper
+    * @throws MarshallingError when there the implementer encounters any errors
+    */
+   Optional&lt;HealthWrapper&gt; unmarshall(String theEntity);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

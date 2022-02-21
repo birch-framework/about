@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KafkaAdminUtilsAutoConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-kafka-utils</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.kafka</a> &gt; <span class="el_source">KafkaAdminUtilsAutoConfiguration.java</span></div><h1>KafkaAdminUtilsAutoConfiguration.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.framework.kafka;
+
+import org.birchframework.configuration.BirchProperties;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+/**
+ * Auto-configuration for {@link KafkaAdminUtils} and its Micrometer registry metrics.
+ * &lt;p/&gt;
+ * Configurations are as follows:
+ * &lt;pre&gt;
+ * birch:
+ *   kafka:
+ *     admin:
+ *       bootstrap-servers: broker-1:9092,broker-2:9092      # Comma separated list of Kafka broker hosts and ports; required
+ *       zookeeper-servers: zk-1:2181,zk-2:2181              # Comma separated list of Zookeeper hosts and ports; optional
+ *       ssl-protocol:                                       # SSL protocol: TLSv1.3 (default), TLSv1.2, TLSv1.1, SSLv3, SSLv2, or SSL; defaults to TLSv1.3
+ *       security-protocol:                                  # Security protocol: SSL, PLAINT_TEXT, SASL_SSL, or SASL_PLAINTEXT: defaults to PLAINTEXT
+ *       sasl:                                               # SASL configuration
+ *         jaas-config:                                      # SASL JAAS configuration
+ *         mechanism:                                        # SASL mechanism: PLAIN, SCRAM, GSSAPI, LDAP, or OAUTHBEARER; defaults to GSSAPI
+ * &lt;/pre&gt;
+ * @author Keivan Khalichi
+ */
+@Configuration
+@EnableConfigurationProperties(BirchProperties.class)
+@EnableAutoConfiguration
+@EnableScheduling
+@Lazy(false)
+<span class="fc" id="L55">public class KafkaAdminUtilsAutoConfiguration {</span>
+
+   @Bean
+   @ConditionalOnClass({AdminClient.class, KafkaConsumer.class, ConsumerConfig.class, ProducerConfig.class})
+   @ConditionalOnProperty(prefix = &quot;birch.kafka.admin&quot;, name = &quot;bootstrap-servers&quot;)
+   KafkaAdminUtils kafkaAdminUtils(final BirchProperties theProperties) {
+<span class="fc" id="L61">      return new KafkaAdminUtils(theProperties);</span>
+   }
+
+   @Bean
+   @ConditionalOnBean(KafkaAdminUtils.class)
+   @ConditionalOnClass(MeterRegistry.class)
+   KafkaAdminUtilsMetrics kafkaAdminUtilsGauge(final KafkaAdminUtils theKafkaAdminUtils,
+                                               final MeterRegistry theMeterRegistry) {
+<span class="fc" id="L69">      return new KafkaAdminUtilsMetrics(theKafkaAdminUtils, theMeterRegistry);</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
