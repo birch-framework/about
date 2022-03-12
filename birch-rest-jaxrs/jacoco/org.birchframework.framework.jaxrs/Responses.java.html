@@ -73,12 +73,12 @@ public class Responses {
    private static final Class&lt;? extends Enum&lt;?&gt;&gt; errorCodeClass;
 
    static {
-<span class="fc" id="L76">      errorCodeClass = (Class&lt;? extends Enum&lt;?&gt;&gt;) Beans.findImplementation(ErrorCode.class, BirchErrorCode.class)</span>
+<span class="fc" id="L76">      errorCodeClass = (Class&lt;? extends Enum&lt;?&gt;&gt;) Beans.findImplementation(ErrorCode.class, false, BirchErrorCode.class)</span>
 <span class="fc" id="L77">                                                       .filter(Enum.class::isAssignableFrom)</span>
 <span class="fc" id="L78">                                                       .orElse(BirchErrorCode.class);</span>
 <span class="pc bpc" id="L79" title="1 of 2 branches missed.">      if (errorCodeClass == BirchErrorCode.class) {</span>
-<span class="fc" id="L80">         log.warn(&quot;Unable to find suitable implementation of {}; there must be exactly one enum implementation of this interface beside {}&quot;,</span>
-<span class="fc" id="L81">                  ErrorCode.class.getName(), BirchErrorCode.class.getName());</span>
+<span class="nc" id="L80">         log.warn(&quot;Unable to find suitable implementation of {}; there must be exactly one enum implementation of this interface beside {}&quot;,</span>
+<span class="nc" id="L81">                  ErrorCode.class.getName(), BirchErrorCode.class.getName());</span>
       }
 <span class="fc" id="L83">   }</span>
 

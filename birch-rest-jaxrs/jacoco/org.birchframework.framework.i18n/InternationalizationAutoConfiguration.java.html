@@ -13,13 +13,12 @@
  ==============================================================*/
 package org.birchframework.framework.i18n;
 
-import javax.annotation.PostConstruct;
+import org.apache.cxf.bus.spring.SpringBus;
+import org.apache.cxf.spring.boot.autoconfigure.CxfAutoConfiguration;
+import org.apache.cxf.transport.servlet.CXFServlet;
 import org.birchframework.configuration.BirchProperties;
 import org.birchframework.framework.spring.CustomScopesAutoConfiguration;
-import org.birchframework.framework.spring.ThreadScope;
 import org.birchframework.framework.stub.Stub;
-import org.apache.cxf.bus.spring.SpringBus;
-import org.apache.cxf.transport.servlet.CXFServlet;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -30,7 +29,7 @@ import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.GenericApplicationContext;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.support.ResourceBundleMessageSource;
 
 /**
@@ -43,45 +42,22 @@ import org.springframework.context.support.ResourceBundleMessageSource;
 @EnableConfigurationProperties(BirchProperties.class)
 @ConditionalOnProperty(prefix = &quot;birch.i18n&quot;, name = &quot;enabled&quot;)
 @ConditionalOnClass({SpringBus.class, CXFServlet.class})
-@AutoConfigureAfter({DispatcherServletAutoConfiguration.class, CustomScopesAutoConfiguration.class})
+@AutoConfigureAfter({DispatcherServletAutoConfiguration.class, CustomScopesAutoConfiguration.class,
+                     CxfAutoConfiguration.class})
+@Import(CustomScopesAutoConfiguration.class)
 @RefreshScope
-public class InternationalizationAutoConfiguration {
-
-   private final SpanHeadersContainerBean spanHeadersContainerBean;
-   private final BirchProperties          properties;
-   private final SpringBus                bus;
-
-   public InternationalizationAutoConfiguration(final BirchProperties theProperties,
-                                                final SpringBus theBus,
-<span class="nc" id="L56">                                                final GenericApplicationContext theContext) {</span>
-<span class="nc" id="L57">      this.properties               = theProperties;</span>
-<span class="nc" id="L58">      this.bus                      = theBus;</span>
-<span class="nc" id="L59">      theContext.registerBean(SpanHeadersContainerBean.class);</span>
-<span class="nc" id="L60">      this.spanHeadersContainerBean = theContext.getBean(SpanHeadersContainerBean.class);</span>
-<span class="nc" id="L61">   }</span>
-
-   @PostConstruct
-   void init() {
-<span class="nc" id="L65">      final var anInterceptor = new SpanningClientInterceptor(this.spanHeadersContainerBean);</span>
-<span class="nc" id="L66">      this.bus.getOutInterceptors().add(anInterceptor);</span>
-<span class="nc" id="L67">      this.bus.getOutFaultInterceptors().add(anInterceptor);</span>
-<span class="nc" id="L68">   }</span>
+<span class="fc" id="L49">public class InternationalizationAutoConfiguration {</span>
 
    /**
     * Creates a {@link ResourceBundleMessageSource}.
     * @return the resource bundle message source instance
     */
    @Bean
-   MessageSource messageSource() {
-<span class="nc" id="L76">      return Stub.of(ResourceBundleMessageSource.class, resourceBundleMessageSource -&gt; {</span>
-<span class="nc" id="L77">         resourceBundleMessageSource.setBasename(this.properties.getI18n().getResourceBundleBaseName());</span>
-<span class="nc" id="L78">      });</span>
-   }
-
-   @Bean(&quot;spanHeadersContainer&quot;)
-   @ThreadScope
-   SpanHeadersContainer spanHeadersContainer() {
-<span class="nc" id="L84">      return new SpanHeadersContainer();</span>
+   @ConditionalOnProperty(prefix = &quot;birch.i18n&quot;, name = &quot;resource-bundle-base-name&quot;)
+   MessageSource messageSource(final BirchProperties theProperties) {
+<span class="fc" id="L58">      return Stub.of(ResourceBundleMessageSource.class, resourceBundleMessageSource -&gt; {</span>
+<span class="fc" id="L59">         resourceBundleMessageSource.setBasename(theProperties.getI18n().getResourceBundleBaseName());</span>
+<span class="fc" id="L60">      });</span>
    }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -25,32 +25,32 @@ import org.birchframework.dto.ErrorResponse;
 public abstract class BaseException extends Exception {
 
    /** Instance of error response */
-   private final ErrorResponse&lt;?&gt; errorResponse;
+   private final ErrorResponse&lt;? extends Enum&lt;?&gt;&gt; errorResponse;
 
    @SuppressWarnings(&quot;CPD-START&quot;)
-   public BaseException(final ErrorResponse&lt;?&gt; theErrorResponse, final Throwable theCause) {
+   public BaseException(final ErrorResponse&lt;? extends Enum&lt;?&gt;&gt; theErrorResponse, final Throwable theCause) {
 <span class="nc" id="L32">      super(theCause);</span>
 <span class="nc" id="L33">      this.errorResponse = theErrorResponse;</span>
 <span class="nc" id="L34">   }</span>
 
-   public BaseException(final ErrorResponse&lt;?&gt; theErrorResponse) {
+   public BaseException(final ErrorResponse&lt;? extends Enum&lt;?&gt;&gt; theErrorResponse) {
 <span class="nc" id="L37">      super();</span>
 <span class="nc" id="L38">      this.errorResponse = theErrorResponse;</span>
 <span class="nc" id="L39">   }</span>
 
-   public BaseException(final ErrorCode&lt;?&gt; theErrorCode) {
+   public BaseException(final ErrorCode&lt;? extends Enum&lt;?&gt;&gt; theErrorCode) {
 <span class="nc" id="L42">      this(theErrorCode.errorResponse());</span>
 <span class="nc" id="L43">   }</span>
 
-   public BaseException(final ErrorCode&lt;?&gt; theErrorCode, final Throwable theCause) {
+   public BaseException(final ErrorCode&lt;? extends Enum&lt;?&gt;&gt; theErrorCode, final Throwable theCause) {
 <span class="nc" id="L46">      this(theErrorCode.errorResponse(), theCause);</span>
 <span class="nc" id="L47">   }</span>
 
-   public ErrorResponse getErrorResponse() {
+   public ErrorResponse&lt;? extends Enum&lt;?&gt;&gt; getErrorResponse() {
 <span class="nc" id="L50">      return this.errorResponse;</span>
    }
 
-   public ErrorCode&lt;?&gt; getErrorCode() {
+   public ErrorCode&lt;? extends Enum&lt;?&gt;&gt; getErrorCode() {
 <span class="nc" id="L54">      return this.errorResponse.getCode();</span>
    }
 

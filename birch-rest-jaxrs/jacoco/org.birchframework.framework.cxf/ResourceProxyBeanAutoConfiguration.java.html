@@ -13,13 +13,16 @@
  ==============================================================*/
 package org.birchframework.framework.cxf;
 
+import java.net.MalformedURLException;
 import java.util.List;
 import java.util.function.Supplier;
 import javax.annotation.PostConstruct;
 import javax.ws.rs.Path;
+import com.google.common.base.Throwables;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.UrlValidator;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
 import org.apache.cxf.spring.boot.autoconfigure.CxfAutoConfiguration;
 import org.birchframework.framework.beans.Beans;
@@ -47,42 +50,53 @@ import org.springframework.context.support.GenericApplicationContext;
 @Configuration
 @EnableAutoConfiguration
 @AutoConfigureAfter(CxfAutoConfiguration.class)
-<span class="fc" id="L50">@RequiredArgsConstructor</span>
-<span class="fc" id="L51">@Slf4j</span>
+<span class="fc" id="L53">@RequiredArgsConstructor</span>
+<span class="fc" id="L54">@Slf4j</span>
 @SuppressWarnings(&quot;SpringFacetCodeInspection&quot;)
 public class ResourceProxyBeanAutoConfiguration implements BeanPostProcessor {
+
+<span class="fc" id="L58">   private static final UrlValidator URL_VALIDATOR = UrlValidator.getInstance();</span>
 
    private final GenericApplicationContext   context;
    private final ResourceClientRequestFilter resourceClientRequestFilter;
 
    @PostConstruct
    protected void init() {
-<span class="fc" id="L60">      final var aResourceInterfaces = Beans.classesAnnotatedWith(AutoProxy.class);</span>
-<span class="pc bpc" id="L61" title="2 of 4 branches missed.">      aResourceInterfaces.stream().filter(c -&gt; c.isInterface() &amp;&amp; c.isAnnotationPresent(Path.class)).forEach(clazz -&gt; {</span>
+<span class="fc" id="L65">      final var aResourceInterfaces = Beans.classesAnnotatedWith(AutoProxy.class);</span>
+<span class="pc bpc" id="L66" title="2 of 4 branches missed.">      aResourceInterfaces.stream().filter(c -&gt; c.isInterface() &amp;&amp; c.isAnnotationPresent(Path.class)).forEach(clazz -&gt; {</span>
          try {
-<span class="nc" id="L63">            final var aBean = this.context.getBean(clazz);</span>
-<span class="nc" id="L64">            log.info(&quot;A bean of type {} that satisfies auto-wiring by type for {} already exists in the application context; skipping proxy creation&quot;,</span>
-<span class="nc" id="L65">                     aBean.getClass().getName(),</span>
-<span class="nc" id="L66">                     clazz.getName());</span>
+<span class="nc" id="L68">            final var aBean = this.context.getBean(clazz);</span>
+<span class="nc" id="L69">            log.info(&quot;A bean of type {} that satisfies auto-wiring by type for {} already exists in the application context; skipping proxy creation&quot;,</span>
+<span class="nc" id="L70">                     aBean.getClass().getName(),</span>
+<span class="nc" id="L71">                     clazz.getName());</span>
          }
-<span class="fc" id="L68">         catch (NoSuchBeanDefinitionException nsbde) {</span>
-<span class="fc" id="L69">            this.registerBean(clazz);</span>
-<span class="nc" id="L70">         }</span>
-<span class="fc" id="L71">      });</span>
-<span class="fc" id="L72">   }</span>
+<span class="fc" id="L73">         catch (NoSuchBeanDefinitionException nsbde) {</span>
+            try {
+<span class="fc" id="L75">               this.registerBean(clazz);</span>
+            }
+<span class="fc" id="L77">            catch (Exception e) {</span>
+<span class="fc" id="L78">               throw new RuntimeException(Throwables.getRootCause(e));</span>
+<span class="fc" id="L79">            }</span>
+<span class="nc" id="L80">         }</span>
+<span class="fc" id="L81">      });</span>
+<span class="fc" id="L82">   }</span>
 
-   private &lt;T&gt; void registerBean(Class&lt;T&gt; theClass) {
-<span class="fc" id="L75">      final var anEnvironment = this.context.getEnvironment();</span>
-<span class="fc" id="L76">      final var anAutoProxy   = theClass.getAnnotation(AutoProxy.class);</span>
-<span class="fc" id="L77">      final var aBaseURI      = anEnvironment.resolvePlaceholders(anAutoProxy.baseURI());</span>
-<span class="fc" id="L78">      final var aProviders    = List.of(this.resourceClientRequestFilter, anAutoProxy.providers());</span>
-<span class="fc" id="L79">      final var aUserName     = anEnvironment.resolvePlaceholders(anAutoProxy.username());</span>
-<span class="fc" id="L80">      final var aPassword     = anEnvironment.resolvePlaceholders(anAutoProxy.password());</span>
-<span class="pc bpc" id="L81" title="1 of 2 branches missed.">      final Supplier&lt;T&gt; aProxySupplier = () -&gt; StringUtils.isBlank(aUserName)</span>
-<span class="fc" id="L82">                                             ? JAXRSClientFactory.create(aBaseURI, theClass, aProviders, anAutoProxy.threadSafe())</span>
-<span class="nc" id="L83">                                             : JAXRSClientFactory.create(aBaseURI, theClass, aProviders, aUserName, aPassword, null);</span>
-<span class="fc" id="L84">      context.registerBean(theClass, aProxySupplier);</span>
-<span class="fc" id="L85">      log.info(&quot;Registered JAX-RS proxy bean of type {}&quot;, theClass.getName());</span>
-<span class="fc" id="L86">   }</span>
+   private &lt;T&gt; void registerBean(Class&lt;T&gt; theClass) throws MalformedURLException {
+<span class="fc" id="L85">      final var anEnvironment = this.context.getEnvironment();</span>
+<span class="fc" id="L86">      final var anAutoProxy   = theClass.getAnnotation(AutoProxy.class);</span>
+<span class="fc" id="L87">      final var aProviders    = List.of(this.resourceClientRequestFilter, anAutoProxy.providers());</span>
+<span class="fc" id="L88">      final var aUserName     = anEnvironment.resolvePlaceholders(anAutoProxy.username());</span>
+<span class="fc" id="L89">      final var aPassword     = anEnvironment.resolvePlaceholders(anAutoProxy.password());</span>
+<span class="fc" id="L90">      final var aBaseURI      = anEnvironment.resolvePlaceholders(anAutoProxy.baseURI());</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">      if (!URL_VALIDATOR.isValid(aBaseURI)) {</span>
+<span class="fc" id="L92">         throw new MalformedURLException(String.format(&quot;Invalid base URI %s specified for resource %s&quot;, aBaseURI, theClass.getName()));</span>
+      }
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">      final Supplier&lt;T&gt; aProxySupplier = () -&gt; StringUtils.isBlank(aUserName)</span>
+<span class="fc" id="L95">                                             ? JAXRSClientFactory.create(aBaseURI, theClass, aProviders, anAutoProxy.threadSafe())</span>
+<span class="nc" id="L96">                                             : JAXRSClientFactory.create(aBaseURI, theClass, aProviders, aUserName, aPassword, null);</span>
+<span class="fc" id="L97">      this.context.registerBean(theClass, aProxySupplier);</span>
+<span class="fc" id="L98">      this.context.getBean(theClass);</span>
+<span class="fc" id="L99">      log.info(&quot;Registered JAX-RS proxy bean of type {}&quot;, theClass.getName());</span>
+<span class="fc" id="L100">   }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

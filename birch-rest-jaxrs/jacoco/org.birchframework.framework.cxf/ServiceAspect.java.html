@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServiceAspect.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-rest-jaxrs</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.framework.cxf</a> &gt; <span class="el_source">ServiceAspect.java</span></div><h1>ServiceAspect.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2022 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+
+package org.birchframework.framework.cxf;
+
+import javax.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.Aspect;
+
+/**
+ * Aspect to ensure {@link SpanHeadersContainerBean#unload()} is called at the end of all JAX-RS service methods.
+ * @author Keivan Khalichi
+ */
+@Aspect
+<span class="fc" id="L28">@RequiredArgsConstructor</span>
+<span class="fc" id="L29">@Slf4j</span>
+class ServiceAspect {
+
+   private final SpanHeadersContainerBean spanHeadersContainerBean;
+
+   @PostConstruct
+   void init() {
+<span class="fc" id="L36">      log.info(&quot;This @Aspect has been configured&quot;);</span>
+<span class="fc" id="L37">   }</span>
+
+   @After(value = &quot;within(@org.springframework.stereotype.Service *) &amp;&amp; execution(javax.ws.rs.core.Response *.*(..))&quot;)
+   public void afterServiceMethodExecution() {
+<span class="fc" id="L41">      this.spanHeadersContainerBean.unload();</span>
+<span class="fc" id="L42">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

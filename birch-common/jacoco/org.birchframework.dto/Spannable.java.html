@@ -28,18 +28,16 @@ import org.birchframework.framework.beans.Beans;
 @SuppressWarnings({&quot;rawtypes&quot;, &quot;unused&quot;})
 public interface Spannable&lt;E extends Enum&lt;E&gt;&gt; {
    /** Discovered implementation in the classpath */
-<span class="nc" id="L31">   Class&lt;? extends Spannable&gt; impl = Beans.findImplementation(Spannable.class)</span>
-<span class="nc" id="L32">                                          .filter(Enum.class::isAssignableFrom)</span>
-<span class="nc" id="L33">                                          .orElse(null);</span>
+<span class="fc" id="L31">   Class&lt;? extends Spannable&gt; impl = Beans.findImplementation(Spannable.class).filter(Enum.class::isAssignableFrom).orElse(null);</span>
    /** String spannable keys */
-<span class="nc" id="L35">   List&lt;String&gt;               keys = keys();</span>
+<span class="fc" id="L33">   List&lt;String&gt;               keys = keys();</span>
 
    private static List&lt;String&gt; keys() {
-<span class="nc bnc" id="L38" title="All 2 branches missed.">      if (impl == null) {</span>
-<span class="nc" id="L39">         return Collections.emptyList();</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">      if (impl == null) {</span>
+<span class="nc" id="L37">         return Collections.emptyList();</span>
       }
-<span class="nc" id="L41">      final var anEnumValues = impl.getEnumConstants();</span>
-<span class="nc" id="L42">      return Stream.of(anEnumValues).map(Spannable::name).collect(Collectors.toUnmodifiableList());</span>
+<span class="fc" id="L39">      final var anEnumValues = impl.getEnumConstants();</span>
+<span class="fc" id="L40">      return Stream.of(anEnumValues).map(Spannable::name).collect(Collectors.toUnmodifiableList());</span>
    }
 
    String name();

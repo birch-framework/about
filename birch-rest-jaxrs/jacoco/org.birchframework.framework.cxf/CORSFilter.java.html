@@ -35,7 +35,7 @@ import static java.lang.Boolean.*;
  * @author Keivan Khalichi
  */
 @Provider
-<span class="nc" id="L38">@Slf4j</span>
+<span class="fc" id="L38">@Slf4j</span>
 @SuppressWarnings(&quot;AutoBoxing&quot;)
 public class CORSFilter implements ContainerResponseFilter {
 
@@ -44,26 +44,26 @@ public class CORSFilter implements ContainerResponseFilter {
    private final boolean allow;
 
    static {
-<span class="nc" id="L47">      ACCESS_CONTROL_HEADERS = Map.of(ACCESS_CONTROL_EXPOSE_HEADERS,    List.of(&quot;origin&quot;, &quot;content-type&quot;, &quot;accept&quot;, &quot;authorization&quot;),</span>
-<span class="nc" id="L48">                                      ACCESS_CONTROL_ALLOW_CREDENTIALS, List.of(TRUE),</span>
-<span class="nc" id="L49">                                      ACCESS_CONTROL_ALLOW_METHODS,     Stream.of(HttpMethod.values()).map(Enum::name).collect(Collectors.toList()),</span>
-<span class="nc" id="L50">                                      ACCESS_CONTROL_MAX_AGE,           List.of(Duration.ofSeconds(5).toSeconds()));</span>
-<span class="nc" id="L51">   }</span>
+<span class="fc" id="L47">      ACCESS_CONTROL_HEADERS = Map.of(ACCESS_CONTROL_EXPOSE_HEADERS,    List.of(&quot;origin&quot;, &quot;content-type&quot;, &quot;accept&quot;, &quot;authorization&quot;),</span>
+<span class="fc" id="L48">                                      ACCESS_CONTROL_ALLOW_CREDENTIALS, List.of(TRUE),</span>
+<span class="fc" id="L49">                                      ACCESS_CONTROL_ALLOW_METHODS,     Stream.of(HttpMethod.values()).map(Enum::name).collect(Collectors.toList()),</span>
+<span class="fc" id="L50">                                      ACCESS_CONTROL_MAX_AGE,           List.of(Duration.ofSeconds(5).toSeconds()));</span>
+<span class="fc" id="L51">   }</span>
 
-<span class="nc" id="L53">   public CORSFilter(final BirchProperties theProperties) {</span>
-<span class="nc" id="L54">      this.allow = theProperties.getSecurity().getCxf().getCors().isAllow();</span>
-<span class="nc bnc" id="L55" title="All 2 branches missed.">      if (this.allow) {</span>
+<span class="fc" id="L53">   public CORSFilter(final BirchProperties theProperties) {</span>
+<span class="fc" id="L54">      this.allow = theProperties.getSecurity().getCxf().getCors().isAllow();</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">      if (this.allow) {</span>
 <span class="nc" id="L56">         log.warn(&quot;This filter is configured to allow Cross-Origin Resource Sharing (CORS); this configuration should be disabled in production environments&quot;);</span>
       }
-<span class="nc" id="L58">   }</span>
+<span class="fc" id="L58">   }</span>
 
    @Override
    public void filter(final ContainerRequestContext theRequestContext, final ContainerResponseContext theResponseContext) throws IOException {
-<span class="nc bnc" id="L62" title="All 2 branches missed.">      if (this.allow) {</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">      if (this.allow) {</span>
 <span class="nc" id="L63">         final var aResponseHeaders = theResponseContext.getHeaders();</span>
 <span class="nc" id="L64">         aResponseHeaders.putAll(ACCESS_CONTROL_HEADERS);</span>
 <span class="nc" id="L65">         aResponseHeaders.add(ACCESS_CONTROL_ALLOW_ORIGIN, theRequestContext.getHeaderString(ORIGIN));</span>
       }
-<span class="nc" id="L67">   }</span>
+<span class="fc" id="L67">   }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

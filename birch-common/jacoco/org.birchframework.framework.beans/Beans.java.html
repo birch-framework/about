@@ -38,7 +38,7 @@ import org.birchframework.framework.spring.SpringContext;
 import org.checkerframework.checker.regex.qual.Regex;
 import org.reflections.Configuration;
 import org.reflections.Reflections;
-import org.reflections.scanners.SubTypesScanner;
+import org.reflections.scanners.Scanners;
 import org.reflections.util.ClasspathHelper;
 import org.reflections.util.ConfigurationBuilder;
 import org.reflections.util.FilterBuilder;
@@ -67,7 +67,7 @@ public class Beans {
 <span class="fc" id="L67">   private static final MapperFactory mapperFactory                       = new DefaultMapperFactory.Builder().build();</span>
 
    static {
-<span class="fc" id="L70">      final var aFilterBuilder = new FilterBuilder().exclude(DEFAULT_IGNORED_BASE_PACKAGES);</span>
+<span class="fc" id="L70">      final var aFilterBuilder = new FilterBuilder().excludePattern(DEFAULT_IGNORED_BASE_PACKAGES);</span>
 <span class="fc" id="L71">      defaultExcludedBasePackagesConfig = new ConfigurationBuilder().filterInputsBy(aFilterBuilder);</span>
 <span class="fc" id="L72">   }</span>
 
@@ -210,7 +210,7 @@ public class Beans {
 <span class="fc" id="L210">         return theStringValue.charAt(0);</span>
       }
 <span class="pc bpc" id="L212" title="1 of 2 branches missed.">      else if (Enum.class.isAssignableFrom(theTargetType)) {</span>
-<span class="fc" id="L213">         final var aValue = theStringValue.replaceAll(&quot;-&quot;, &quot;_&quot;);</span>
+<span class="fc" id="L213">         final var aValue = theStringValue.replace(&quot;-&quot;, &quot;_&quot;);</span>
 <span class="fc" id="L214">         return Stream.of(((Class&lt;Enum&lt;?&gt;&gt;) theTargetType).getEnumConstants()).filter(value -&gt; value.name().equalsIgnoreCase(aValue)).findFirst().orElse(null);</span>
       }
 <span class="nc bnc" id="L216" title="All 4 branches missed.">      else if (float.class.isAssignableFrom(theTargetType) || Float.class.isAssignableFrom(theTargetType)) {</span>
@@ -226,95 +226,104 @@ public class Beans {
    }
 
    public static &lt;T&gt; Optional&lt;Class&lt;? extends T&gt;&gt; findImplementation(final Class&lt;T&gt; theInterface, final Class&lt;?&gt;... theExcludeClasses) {
-<span class="fc" id="L229">      return findImplementation(null, theInterface, DEFAULT_BASE_PACKAGE_DEPTH, theExcludeClasses);</span>
+<span class="fc" id="L229">      return findImplementation(null, theInterface, DEFAULT_BASE_PACKAGE_DEPTH, true, theExcludeClasses);</span>
+   }
+
+   public static &lt;T&gt; Optional&lt;Class&lt;? extends T&gt;&gt; findImplementation(final Class&lt;T&gt; theInterface, final boolean theIsGlobalFlag,
+                                                                     final Class&lt;?&gt;... theExcludeClasses) {
+<span class="nc" id="L234">      return findImplementation(null, theInterface, DEFAULT_BASE_PACKAGE_DEPTH, theIsGlobalFlag, theExcludeClasses);</span>
    }
 
    public static &lt;T&gt; Optional&lt;Class&lt;? extends T&gt;&gt; findImplementation(final StackWalker theStackWalker, final Class&lt;T&gt; theInterface,
                                                                      final Class&lt;?&gt;... theExcludeClasses) {
-<span class="nc" id="L234">      return findImplementation(theStackWalker, theInterface, DEFAULT_BASE_PACKAGE_DEPTH, theExcludeClasses);</span>
+<span class="nc" id="L239">      return findImplementation(theStackWalker, theInterface, DEFAULT_BASE_PACKAGE_DEPTH, false, theExcludeClasses);</span>
    }
 
    @SuppressWarnings(&quot;unchecked&quot;)
    public static &lt;T&gt; Optional&lt;Class&lt;? extends T&gt;&gt; findImplementation(@Nullable final StackWalker theStackWalker, @Nonnull final Class&lt;T&gt; theInterface,
-                                                                     final int theBasePackageDepth, final Class&lt;?&gt;... theExcludeClasses) {
-<span class="fc" id="L240">      final var aCallerClass = findCallerClass(theStackWalker, DEFAULT_IGNORED_BASE_PACKAGES);</span>
-      final Class&lt;T&gt; anImplementation;
-<span class="pc bpc" id="L242" title="1 of 2 branches missed.">      if (aCallerClass.isEmpty()) {</span>
-<span class="nc" id="L243">         anImplementation = null;</span>
+                                                                     final int theBasePackageDepth, final boolean theIsGlobalFlag,
+                                                                     final Class&lt;?&gt;... theExcludeClasses) {
+      final FilterBuilder aFilterBuilder;
+      final String aBasePackage;
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">      if (theIsGlobalFlag) {</span>
+<span class="fc" id="L249">         aFilterBuilder = new FilterBuilder().excludePattern(DEFAULT_IGNORED_BASE_PACKAGES);</span>
+<span class="fc" id="L250">         aBasePackage = &quot;&quot;;</span>
       }
       else {
-<span class="fc" id="L246">         final var aBasePackage = computeBasePackageName(aCallerClass.get(), theBasePackageDepth);</span>
-<span class="pc bpc" id="L247" title="1 of 2 branches missed.">         if (StringUtils.isBlank(aBasePackage)) {</span>
-<span class="nc" id="L248">            anImplementation = null;</span>
+<span class="nc" id="L253">         final var aCallerClass = findCallerClass(theStackWalker, DEFAULT_IGNORED_BASE_PACKAGES);</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">         if (aCallerClass.isEmpty()) {</span>
+<span class="nc" id="L255">            aFilterBuilder = new FilterBuilder().excludePattern(DEFAULT_IGNORED_BASE_PACKAGES);</span>
+<span class="nc" id="L256">            aBasePackage = &quot;&quot;;</span>
          }
          else {
-<span class="pc bpc" id="L251" title="1 of 2 branches missed.">            final var anExcludeClasses = theExcludeClasses == null ? Collections.&lt;Class&lt;?&gt;&gt;emptyList() : Arrays.asList(theExcludeClasses);</span>
-<span class="fc" id="L252">            final var aFilterBuilder = new FilterBuilder().includePackage(aBasePackage).exclude(DEFAULT_IGNORED_BASE_PACKAGES);</span>
-<span class="fc" id="L253">            final var aConfigBuilder = new ConfigurationBuilder().addUrls(ClasspathHelper.forPackage(aBasePackage))</span>
-<span class="fc" id="L254">                                                                 .filterInputsBy(aFilterBuilder)</span>
-<span class="fc" id="L255">                                                                 .setScanners(new SubTypesScanner());</span>
-<span class="fc" id="L256">            anImplementation = (Class&lt;T&gt;) new Reflections(aConfigBuilder).getSubTypesOf(theInterface)</span>
-<span class="fc" id="L257">                                                                         .stream()</span>
-<span class="fc" id="L258">                                                                         .filter(c -&gt; anExcludeClasses.stream().noneMatch(ec -&gt; ec.isAssignableFrom(c)))</span>
-<span class="fc" id="L259">                                                                         .findFirst()</span>
-<span class="fc" id="L260">                                                                         .orElse(null);</span>
+<span class="nc" id="L259">            aBasePackage = computeBasePackageName(aCallerClass.get(), theBasePackageDepth);</span>
+<span class="nc" id="L260">            aFilterBuilder = new FilterBuilder().includePackage(aBasePackage).excludePattern(DEFAULT_IGNORED_BASE_PACKAGES);</span>
          }
       }
-<span class="fc" id="L263">      return Optional.ofNullable(anImplementation);</span>
+<span class="fc" id="L263">      final var aConfigBuilder = new ConfigurationBuilder().addUrls(ClasspathHelper.forPackage(aBasePackage))</span>
+<span class="fc" id="L264">                                                           .filterInputsBy(aFilterBuilder)</span>
+<span class="fc" id="L265">                                                           .setScanners(Scanners.SubTypes);</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">      final var anExcludeClasses = theExcludeClasses == null ? Collections.&lt;Class&lt;?&gt;&gt;emptyList() : Arrays.asList(theExcludeClasses);</span>
+<span class="fc" id="L267">      final var anImplementation = (Class&lt;T&gt;) new Reflections(aConfigBuilder).getSubTypesOf(theInterface)</span>
+<span class="fc" id="L268">                                                                             .stream()</span>
+<span class="fc" id="L269">                                                                             .filter(c -&gt; anExcludeClasses.stream().noneMatch(ec -&gt; ec.isAssignableFrom(c)))</span>
+<span class="fc" id="L270">                                                                             .findFirst()</span>
+<span class="fc" id="L271">                                                                             .orElse(null);</span>
+<span class="fc" id="L272">      return Optional.ofNullable(anImplementation);</span>
    }
 
    public static Optional&lt;Class&lt;?&gt;&gt; findCallerClass() {
-<span class="nc" id="L267">      return findCallerClass(null, null);</span>
+<span class="nc" id="L276">      return findCallerClass(null, null);</span>
    }
 
    public static Optional&lt;Class&lt;?&gt;&gt; findCallerClass(final String theIgnoredBasePackages) {
-<span class="nc" id="L271">      return findCallerClass(null, theIgnoredBasePackages);</span>
+<span class="nc" id="L280">      return findCallerClass(null, theIgnoredBasePackages);</span>
    }
 
    public static Optional&lt;Class&lt;?&gt;&gt; findCallerClass(@Nullable final StackWalker theStackWalker, @Regex final String theIgnoredBasePackages) {
-<span class="pc bpc" id="L275" title="1 of 2 branches missed.">      final var aStackWalker = theStackWalker == null ? StackWalker.getInstance(RETAIN_CLASS_REFERENCE) : theStackWalker;</span>
-<span class="pc bpc" id="L276" title="1 of 2 branches missed.">      final var anIgnoredBasePackages = StringUtils.isBlank(theIgnoredBasePackages) ? DEFAULT_IGNORED_BASE_PACKAGES : theIgnoredBasePackages;</span>
-<span class="fc bfc" id="L277" title="All 2 branches covered.">      return aStackWalker.walk(frames -&gt; frames.filter(e -&gt; !e.getClassName().matches(anIgnoredBasePackages)).findFirst().map(StackFrame::getDeclaringClass));</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">      final var aStackWalker = theStackWalker == null ? StackWalker.getInstance(RETAIN_CLASS_REFERENCE) : theStackWalker;</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">      final var anIgnoredBasePackages = StringUtils.isBlank(theIgnoredBasePackages) ? DEFAULT_IGNORED_BASE_PACKAGES : theIgnoredBasePackages;</span>
+<span class="nc" id="L286">      return aStackWalker.walk(frames -&gt; frames.dropWhile(e -&gt; e.getClassName().matches(anIgnoredBasePackages)).findFirst().map(StackFrame::getDeclaringClass));</span>
    }
 
    public static Set&lt;Class&lt;?&gt;&gt; classesAnnotatedWith(final Class&lt;? extends Annotation&gt; theAnnotationClass) {
-<span class="nc" id="L281">      final var aCallerClass = findCallerClass();</span>
-<span class="nc bnc" id="L282" title="All 2 branches missed.">      if (aCallerClass.isEmpty()) {</span>
-<span class="nc" id="L283">         return Collections.emptySet();</span>
+<span class="nc" id="L290">      final var aCallerClass = findCallerClass();</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">      if (aCallerClass.isEmpty()) {</span>
+<span class="nc" id="L292">         return Collections.emptySet();</span>
       }
       else {
-<span class="nc" id="L286">         final var aBasePackage = computeBasePackageName(aCallerClass.get(), DEFAULT_BASE_PACKAGE_DEPTH);</span>
-<span class="nc bnc" id="L287" title="All 2 branches missed.">         if (StringUtils.isBlank(aBasePackage)) {</span>
-<span class="nc" id="L288">            return Collections.emptySet();</span>
+<span class="nc" id="L295">         final var aBasePackage = computeBasePackageName(aCallerClass.get(), DEFAULT_BASE_PACKAGE_DEPTH);</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">         if (StringUtils.isBlank(aBasePackage)) {</span>
+<span class="nc" id="L297">            return Collections.emptySet();</span>
          }
          else {
-<span class="nc" id="L291">            final var aConfigBuilder = new ConfigurationBuilder().addUrls(ClasspathHelper.forPackage(aBasePackage))</span>
-<span class="nc" id="L292">                                                                 .filterInputsBy(new FilterBuilder().exclude(DEFAULT_IGNORED_BASE_PACKAGES));</span>
-<span class="nc" id="L293">            final var aReflections = new Reflections(aConfigBuilder);</span>
-<span class="nc" id="L294">            return aReflections.getTypesAnnotatedWith(theAnnotationClass);</span>
+<span class="nc" id="L300">            final var aConfigBuilder = new ConfigurationBuilder().addUrls(ClasspathHelper.forPackage(aBasePackage))</span>
+<span class="nc" id="L301">                                                                 .filterInputsBy(new FilterBuilder().excludePattern(DEFAULT_IGNORED_BASE_PACKAGES));</span>
+<span class="nc" id="L302">            final var aReflections = new Reflections(aConfigBuilder);</span>
+<span class="nc" id="L303">            return aReflections.getTypesAnnotatedWith(theAnnotationClass);</span>
          }
       }
    }
 
    public static Set&lt;Class&lt;?&gt;&gt; classesAnnotatedWith(final Class&lt;? extends Annotation&gt; theAnnotationClass, @Nullable String... theBasePackages) {
-<span class="nc" id="L300">      final var aReflections = new Reflections((Object[]) theBasePackages);</span>
-<span class="nc" id="L301">      return aReflections.getTypesAnnotatedWith(theAnnotationClass);</span>
+<span class="nc" id="L309">      final var aReflections = new Reflections((Object[]) theBasePackages);</span>
+<span class="nc" id="L310">      return aReflections.getTypesAnnotatedWith(theAnnotationClass);</span>
    }
 
    public static String computeBasePackageName(@Nonnull final Class&lt;?&gt; theClass) {
-<span class="nc" id="L305">      return computeBasePackageName(theClass, DEFAULT_BASE_PACKAGE_DEPTH);</span>
+<span class="nc" id="L314">      return computeBasePackageName(theClass, DEFAULT_BASE_PACKAGE_DEPTH);</span>
    }
 
    public static String computeBasePackageName(@Nonnull final Class&lt;?&gt; theClass, final int theDepth) {
-<span class="pc bpc" id="L309" title="1 of 2 branches missed.">      if (theDepth &lt;= 0) {</span>
-<span class="nc" id="L310">         throw new AssertionError(&quot;Depth must be greater than 0&quot;);</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">      if (theDepth &lt;= 0) {</span>
+<span class="nc" id="L319">         throw new AssertionError(&quot;Depth must be greater than 0&quot;);</span>
       }
-<span class="fc" id="L312">      final var aCallerClassName = theClass.getName();</span>
-<span class="fc" id="L313">      var anIndex = 0;</span>
-<span class="fc bfc" id="L314" title="All 2 branches covered.">      for (int i = 0; i &lt; theDepth; i++) {</span>
-<span class="fc" id="L315">         anIndex = aCallerClassName.indexOf('.', aCallerClassName.indexOf('.') + anIndex);</span>
+<span class="nc" id="L321">      final var aCallerClassName = theClass.getName();</span>
+<span class="nc" id="L322">      var anIndex = 0;</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">      for (int i = 0; i &lt; theDepth; i++) {</span>
+<span class="nc" id="L324">         anIndex = aCallerClassName.indexOf('.', aCallerClassName.indexOf('.') + anIndex);</span>
       }
-<span class="fc" id="L317">      return aCallerClassName.substring(0, anIndex);</span>
+<span class="nc" id="L326">      return aCallerClassName.substring(0, anIndex);</span>
    }
 
    /**
@@ -326,24 +335,24 @@ public class Beans {
     * @throws Exception thrown if the bean is not found and an instance cannot be created
     */
    public static &lt;T&gt; T findBeanOrCreateInstance(final Class&lt;T&gt; theClass) throws Exception {
-<span class="nc" id="L329">      return findBeanOrCreateInstance(theClass, new Object[0]);</span>
+<span class="nc" id="L338">      return findBeanOrCreateInstance(theClass, new Object[0]);</span>
    }
 
    public static &lt;T&gt; T findBeanOrCreateInstance(final Class&lt;T&gt; theClass, @Nullable final Object... theConstructorArgs) throws Exception {
-<span class="nc bnc" id="L333" title="All 2 branches missed.">      if (theClass == null) {</span>
-<span class="nc" id="L334">         return null;</span>
+<span class="nc bnc" id="L342" title="All 2 branches missed.">      if (theClass == null) {</span>
+<span class="nc" id="L343">         return null;</span>
       }
       try {
-<span class="nc" id="L337">         var aBean = SpringContext.getBean(theClass);</span>
-<span class="nc bnc" id="L338" title="All 2 branches missed.">         if (aBean == null) {</span>
-<span class="nc" id="L339">            log.info(&quot;SpringContext was not loaded; attempting to create a new instance of {}&quot;, theClass.getName());</span>
-<span class="nc" id="L340">            return ConstructorUtils.invokeConstructor(theClass, theConstructorArgs);</span>
+<span class="nc" id="L346">         var aBean = SpringContext.getBean(theClass);</span>
+<span class="nc bnc" id="L347" title="All 2 branches missed.">         if (aBean == null) {</span>
+<span class="nc" id="L348">            log.info(&quot;SpringContext was not loaded; attempting to create a new instance of {}&quot;, theClass.getName());</span>
+<span class="nc" id="L349">            return ConstructorUtils.invokeConstructor(theClass, theConstructorArgs);</span>
          }
-<span class="nc" id="L342">         return aBean;</span>
+<span class="nc" id="L351">         return aBean;</span>
       }
-<span class="nc" id="L344">      catch (NoSuchBeanDefinitionException e) {</span>
-<span class="nc" id="L345">         log.info(&quot;No bean of type {} found; attempting to create a new instance&quot;, theClass.getName());</span>
-<span class="nc" id="L346">         return ConstructorUtils.invokeConstructor(theClass, theConstructorArgs);</span>
+<span class="nc" id="L353">      catch (NoSuchBeanDefinitionException e) {</span>
+<span class="nc" id="L354">         log.info(&quot;No bean of type {} found; attempting to create a new instance&quot;, theClass.getName());</span>
+<span class="nc" id="L355">         return ConstructorUtils.invokeConstructor(theClass, theConstructorArgs);</span>
       }
    }
 
@@ -354,10 +363,10 @@ public class Beans {
     * @param &lt;T&gt; the datatype of the object being tested and possibly consumed
     */
    public static &lt;T&gt; void consumeIfNotNull(final T theObject, final Consumer&lt;T&gt; theConsumer) {
-<span class="nc bnc" id="L357" title="All 2 branches missed.">      if (theObject != null) {</span>
-<span class="nc" id="L358">         theConsumer.accept(theObject);</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">      if (theObject != null) {</span>
+<span class="nc" id="L367">         theConsumer.accept(theObject);</span>
       }
-<span class="nc" id="L360">   }</span>
+<span class="nc" id="L369">   }</span>
 
    /**
     * Invokes {@code theFunction} only if {@code theObject} is not null
@@ -368,10 +377,10 @@ public class Beans {
     * @return the result of {@code theFunction}, null if {@code theObject} is null
     */
    public static &lt;T, R&gt; R invokeIfNotNull(final T theObject, final Function&lt;T, R&gt; theFunction, final R theValueIfNull) {
-<span class="nc bnc" id="L371" title="All 2 branches missed.">      if (theObject == null) {</span>
-<span class="nc" id="L372">         return theValueIfNull;</span>
+<span class="nc bnc" id="L380" title="All 2 branches missed.">      if (theObject == null) {</span>
+<span class="nc" id="L381">         return theValueIfNull;</span>
       }
-<span class="nc" id="L374">      return theFunction.apply(theObject);</span>
+<span class="nc" id="L383">      return theFunction.apply(theObject);</span>
    }
 
    /**
@@ -380,9 +389,9 @@ public class Beans {
     * @param theRunnable the runnable
     */
    public static void runIfTrue(final boolean theCondition, Runnable theRunnable) {
-<span class="nc bnc" id="L383" title="All 2 branches missed.">      if (theCondition) {</span>
-<span class="nc" id="L384">         theRunnable.run();</span>
+<span class="nc bnc" id="L392" title="All 2 branches missed.">      if (theCondition) {</span>
+<span class="nc" id="L393">         theRunnable.run();</span>
       }
-<span class="nc" id="L386">   }</span>
+<span class="nc" id="L395">   }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
