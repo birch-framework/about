@@ -30,15 +30,13 @@ import org.springframework.util.CollectionUtils;
 
    @PostConstruct
    protected void init() {
-<span class="nc" id="L33">      final var aCallerClass = Beans.findCallerClass();</span>
-<span class="nc bnc" id="L34" title="All 2 branches missed.">      final var aBasePackage = aCallerClass.isEmpty() ? null : Beans.computeBasePackageName(aCallerClass.get());</span>
-<span class="nc" id="L35">      final var anAnnotatedClasses = Beans.classesAnnotatedWith(MappingModel.class, aBasePackage);</span>
-<span class="nc bnc" id="L36" title="All 2 branches missed.">      if (!CollectionUtils.isEmpty(anAnnotatedClasses)) {</span>
-<span class="nc" id="L37">         anAnnotatedClasses.forEach(clazz -&gt; {</span>
-<span class="nc" id="L38">            final var aMappingModel = clazz.getAnnotation(MappingModel.class);</span>
-<span class="nc" id="L39">            Beans.registerMapping(clazz, aMappingModel.mapNulls(), aMappingModel.exclude());</span>
-<span class="nc" id="L40">         });</span>
+<span class="nc" id="L33">      final var anAnnotatedClasses = Beans.classesAnnotatedWith(MappingModel.class);</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">      if (!CollectionUtils.isEmpty(anAnnotatedClasses)) {</span>
+<span class="nc" id="L35">         anAnnotatedClasses.forEach(clazz -&gt; {</span>
+<span class="nc" id="L36">            final var aMappingModel = clazz.getAnnotation(MappingModel.class);</span>
+<span class="nc" id="L37">            Beans.registerMapping(clazz, aMappingModel.mapNulls(), aMappingModel.exclude());</span>
+<span class="nc" id="L38">         });</span>
       }
-<span class="nc" id="L42">   }</span>
+<span class="nc" id="L40">   }</span>
 }
-</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.7.202105040129</span></div></body></html>

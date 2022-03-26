@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseMessageProducerApplication.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-bridge-jms-kafka</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.bridge</a> &gt; <span class="el_source">BaseMessageProducerApplication.java</span></div><h1>BaseMessageProducerApplication.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.bridge;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.IntStream;
+import javax.jms.Message;
+import javax.jms.QueueConnectionFactory;
+import com.google.common.base.Throwables;
+import org.birchframework.framework.cli.AbstractCommandLineApplication;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.ProducerTemplate;
+import org.apache.camel.component.jms.JmsMessageType;
+import org.apache.camel.spring.boot.SpringBootCamelContext;
+import org.apache.commons.cli.Option;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.ComponentScan;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.time.Instant.EPOCH;
+import static org.apache.camel.component.jms.JmsMessageType.Text;
+import static org.apache.camel.component.jms.JmsMessageType.Bytes;
+
+/**
+ * Base class for Spring Boot applications that act as message producers to JMS destinations (currently only supports queues).  Reads command line
+ * options and sends messages to specified configurations specified through those options.  Running the concrete subclass application without command line
+ * arguments will print usage.
+ *
+ * This class requires implementation of the abstract methods so as so enrich the messages.  See each method's Javadocs for details.
+ */
+@ComponentScan(basePackages = &quot;org.springframework.boot.autoconfigure.jackson&quot;)
+<span class="nc" id="L53">@Slf4j</span>
+@SuppressWarnings(&quot;AutoBoxing&quot;)
+public class BaseMessageProducerApplication extends AbstractCommandLineApplication {
+
+<span class="nc" id="L57">   protected static final Option TEMPLATE_FILE_OPTION      = requiredWithArgsOption(&quot;t&quot;, &quot;template-file&quot;, &quot;load-testing template file&quot;);</span>
+<span class="nc" id="L58">   protected static final Option NUMBER_OF_MESSAGES_OPTION = requiredWithArgsOption(&quot;n&quot;, &quot;number-of-messages&quot;, &quot;number of messages to send&quot;);</span>
+<span class="nc" id="L59">   protected static final Option QUEUE_OPTION              = requiredWithArgsOption(&quot;q&quot;, &quot;queue&quot;, &quot;queue name&quot;);</span>
+<span class="nc" id="L60">   protected static final Option APPLY_GROUP_ID_OPTION     = noArgsOption(&quot;g&quot;, &quot;apply-group-id&quot;, &quot;apply group id (boolean)&quot;);</span>
+   protected static final String JMSXGROUP_ID              = &quot;JMSXGroupID&quot;;
+
+<span class="nc" id="L63">   protected static final Set&lt;JmsMessageType&gt; supportedTypes = Set.of(Text, Bytes);</span>
+   @SuppressWarnings(&quot;unused&quot;)
+<span class="nc" id="L65">   protected static final ThreadLocal&lt;Object&gt; threadLocal    = new ThreadLocal&lt;&gt;();</span>
+
+   private final JmsMessageType   messageType;
+   private final ProducerTemplate producerTemplate;
+
+   protected final ApplicationContext springContext;
+
+   /**
+    * Initializes this application for text message body type.
+    * @param theContext the Camel context
+    */
+   public BaseMessageProducerApplication(final SpringBootCamelContext theContext) {
+<span class="nc" id="L77">      this(Text, theContext);</span>
+<span class="nc" id="L78">   }</span>
+
+   /**
+    * Initializes this application for the given message body type.  Currently only {@link JmsMessageType#Text} and {@link JmsMessageType#Bytes} are
+    * supported.
+    * @param theMessageType the message type
+    * @param theContext the Camel context
+    */
+<span class="nc" id="L86">   public BaseMessageProducerApplication(final JmsMessageType theMessageType, final SpringBootCamelContext theContext) {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">      if (!supportedTypes.contains(theMessageType)) {</span>
+<span class="nc" id="L88">         throw new RuntimeException(String.format(&quot;Message type %s is not supported.&quot;, theMessageType));</span>
+      }
+<span class="nc" id="L90">      this.messageType      = theMessageType;</span>
+<span class="nc" id="L91">      this.producerTemplate = theContext.createProducerTemplate();</span>
+<span class="nc" id="L92">      this.springContext    = theContext.getApplicationContext();</span>
+<span class="nc" id="L93">   }</span>
+
+   @Override
+   protected List&lt;Option&gt; options() {
+<span class="nc" id="L97">      return List.of(TEMPLATE_FILE_OPTION, NUMBER_OF_MESSAGES_OPTION, QUEUE_OPTION, APPLY_GROUP_ID_OPTION);</span>
+   }
+
+   /**
+    * Override to initialize variables before iterations loop begins.  Can be used to initialize the thread-local variable
+    * {@link #threadLocal}.
+    * @param theMessage the message the message as read from source
+    */
+   @SuppressWarnings(&quot;unused&quot;)
+   protected void before(final String theMessage) {
+      // No-op; meant to be overriden if necessary to do so
+<span class="nc" id="L108">   }</span>
+
+   /**
+    * Override to initialize variables for each iteration of the message producer.  Can be used to initialize the thread-local variable
+    * {@link #threadLocal}.
+    * @param i the iteration
+    * @param theMessage the message the message as read from source
+    */
+   @SuppressWarnings(&quot;unused&quot;)
+   protected void beforeEach(final int i, final String theMessage) {
+      // No-op; meant to be overriden if necessary to do so
+<span class="nc" id="L119">   }</span>
+
+   /**
+    * Override with a {@link Map} that will be used to populate {@link Message} properties.
+    * @param i iteration of messages being sent
+    * @param theMessage
+    * @return map of properties with string keys and Object values
+    */
+   protected Map&lt;String, Object&gt; messageProperties(final int i, final String theMessage) {
+<span class="nc" id="L128">      return null;</span>
+   }
+
+   /**
+    * Override to enrich or modify the text message.
+    * @param theTextMessage the message created from template
+    * @return the enriched or modified text message
+    * @throws NullPointerException if the returned string is null
+    */
+   protected String enhanceTextMessage(final String theTextMessage) {
+<span class="nc" id="L138">      return theTextMessage;</span>
+   }
+
+   /**
+    * Override to produce a JMSXGroupID value.  Highly recommended to override this method when using the {@code -g} option.
+    * @return the string used to set the JMSXGroupID property
+    */
+   protected String jmsXGroupID() {
+<span class="nc" id="L146">      return null;</span>
+   }
+
+   @Override
+   protected void run() {
+<span class="nc" id="L151">      final var aTemplateFile     = this.optionValue(TEMPLATE_FILE_OPTION);</span>
+<span class="nc" id="L152">      final var aNumberOfMessages = Integer.parseInt(this.optionValue(NUMBER_OF_MESSAGES_OPTION));</span>
+<span class="nc" id="L153">      final var aQueueName        = this.optionValue(QUEUE_OPTION);</span>
+<span class="nc" id="L154">      final var anApplyGroupID    = this.hasOption(APPLY_GROUP_ID_OPTION);</span>
+
+<span class="nc bnc" id="L156" title="All 2 branches missed.">      final Path aFilePath               = Files.exists(Paths.get(aTemplateFile)) ? Paths.get(aTemplateFile) : null;</span>
+<span class="nc" id="L157">      final var  aQueueConnectionFactory = Arrays.stream(springContext.getBeanNamesForType(QueueConnectionFactory.class)).findFirst().orElse(null);</span>
+<span class="nc" id="L158">      final var  aComponentURI           = String.format(&quot;jms:queue:%s?connectionFactory=%s&quot;, aQueueName, aQueueConnectionFactory);</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">      if (aFilePath == null) {</span>
+<span class="nc" id="L160">         log.error(&quot;File {} not found&quot;, aTemplateFile);</span>
+      }
+      else {
+         try {
+<span class="nc" id="L164">            final var aMessage = Files.readString(aFilePath);</span>
+<span class="nc" id="L165">            final var aStart = Instant.now();</span>
+<span class="nc" id="L166">            this.before(aMessage);</span>
+<span class="nc" id="L167">            IntStream.range(0, aNumberOfMessages).parallel().forEach(i -&gt; this.sendJMSMessage(i, aComponentURI, aMessage, anApplyGroupID));</span>
+<span class="nc" id="L168">            log.info(&quot;Sent {} messages in {} milliseconds&quot;, aNumberOfMessages,</span>
+<span class="nc" id="L169">                     Duration.between(aStart.adjustInto(EPOCH), Instant.now().adjustInto(EPOCH)).toMillis());</span>
+         }
+<span class="nc" id="L171">         catch (IOException e) {</span>
+<span class="nc" id="L172">            log.error(&quot;IO exception; error message: {}&quot;, Throwables.getRootCause(e).getMessage());</span>
+<span class="nc" id="L173">         }</span>
+      }
+<span class="nc" id="L175">   }</span>
+
+   private void sendJMSMessage(final int theIteration, final String theComponentURI, final String theMessage, final boolean theApplyJMSXGroupID) {
+<span class="nc" id="L178">      this.beforeEach(theIteration, theMessage);</span>
+<span class="nc" id="L179">      var aProperties = this.messageProperties(theIteration, theMessage);</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">      if (theApplyJMSXGroupID) {</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">         if (aProperties == null) {</span>
+<span class="nc" id="L182">            aProperties = new HashMap&lt;&gt;(Map.of(JMSXGROUP_ID, this.jmsXGroupID()));</span>
+         }
+         else {
+<span class="nc" id="L185">            aProperties = new HashMap&lt;&gt;(aProperties);</span>
+<span class="nc" id="L186">            aProperties.put(JMSXGROUP_ID, this.jmsXGroupID());</span>
+         }
+      }
+<span class="nc" id="L189">      final var aMessageString = this.enhanceTextMessage(theMessage);</span>
+      final Object aMessageBody;
+<span class="nc bnc" id="L191" title="All 3 branches missed.">      switch (this.messageType) {</span>
+<span class="nc" id="L192">         case Text: aMessageBody = aMessageString; break;</span>
+<span class="nc" id="L193">         case Bytes: aMessageBody = aMessageString.getBytes(UTF_8); break;</span>
+<span class="nc" id="L194">         default: aMessageBody = null;</span>
+      }
+<span class="nc" id="L196">      this.producerTemplate.sendBodyAndHeaders(theComponentURI, aMessageBody, aProperties);</span>
+<span class="nc" id="L197">      log.info(&quot;Sending message iteration {} to {}&quot;, theIteration, theComponentURI);</span>
+<span class="nc" id="L198">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.7.202105040129</span></div></body></html>

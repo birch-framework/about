@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PayloadDataFormat.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-bridge-jms-kafka</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.bridge.dataformat</a> &gt; <span class="el_source">PayloadDataFormat.java</span></div><h1>PayloadDataFormat.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+
+package org.birchframework.bridge.dataformat;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import javax.jms.JMSException;
+import javax.jms.Queue;
+import javax.jms.Topic;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.Exchange;
+import org.apache.camel.spi.DataFormat;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.birchframework.dto.payload.Destination;
+import org.birchframework.dto.payload.Payload;
+import org.birchframework.dto.payload.PropertyValue;
+import org.birchframework.framework.stub.Stub;
+import org.springframework.beans.BeanUtils;
+import org.springframework.boot.context.properties.PropertyMapper;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+import org.springframework.stereotype.Component;
+
+import static org.apache.camel.Exchange.CORRELATION_ID;
+import static org.apache.commons.lang3.builder.ToStringStyle.SIMPLE_STYLE;
+
+/**
+ * {@link Payload} un/marshaller for Camel.
+ * @author Keivan Khalichi
+ */
+@Component(PayloadDataFormat.BEAN_NAME)
+<span class="fc" id="L44">@Slf4j</span>
+<span class="fc" id="L45">public class PayloadDataFormat implements DataFormat {</span>
+
+   public static final String BEAN_NAME = &quot;payload&quot;;
+
+<span class="fc" id="L49">   private final PropertyMapper mapper       = PropertyMapper.get();</span>
+<span class="fc" id="L50">   private final ObjectMapper   objectMapper = Jackson2ObjectMapperBuilder.json().build();</span>
+
+   @Override
+   public void marshal(final Exchange theExchange, final Object theGraph, final OutputStream theOutputStream) throws Exception {
+<span class="fc" id="L54">      final var anInMessage = theExchange.getIn();</span>
+<span class="fc" id="L55">      final var aPayload = new Payload&lt;&gt;((String) theGraph);</span>
+<span class="fc" id="L56">      aPayload.setCorrelationID((String) anInMessage.getHeader(CORRELATION_ID));</span>
+<span class="fc" id="L57">      anInMessage.getHeaders()</span>
+<span class="fc" id="L58">                 .entrySet()</span>
+<span class="fc" id="L59">                 .stream()</span>
+<span class="fc bfc" id="L60" title="All 6 branches covered.">                 .filter(e -&gt; e.getValue() != null &amp;&amp; BeanUtils.isSimpleValueType(e.getValue().getClass()) &amp;&amp; !e.getKey().startsWith(&quot;JMS&quot;))</span>
+<span class="fc" id="L61">                 .forEach(e -&gt; aPayload.setProperty(e.getKey(), new PropertyValue(e.getValue())));</span>
+
+<span class="fc" id="L63">      mapper.from(anInMessage.getHeader(&quot;JMSDeliveryMode&quot;)).whenNonNull().as(o -&gt; (Integer) o).to(aPayload::setDeliveryMode);</span>
+<span class="fc" id="L64">      mapper.from(anInMessage.getHeader(&quot;JMSDestination&quot;)).whenNonNull().as(d -&gt; this.toDestination((javax.jms.Destination) d)).to(aPayload::setDestination);</span>
+<span class="fc" id="L65">      mapper.from(anInMessage.getHeader(&quot;JMSExpiration&quot;)).whenNonNull().as(o -&gt; (Long) o).to(aPayload::setExpiration);</span>
+<span class="fc" id="L66">      mapper.from(anInMessage.getHeader(&quot;JMSMessageID&quot;)).whenNonNull().as(o -&gt; (String) o).to(aPayload::setMessageID);</span>
+<span class="pc" id="L67">      mapper.from(anInMessage.getHeader(&quot;JMSType&quot;)).whenNonNull().as(o -&gt; (String) o).to(aPayload::setType);</span>
+<span class="fc" id="L68">      mapper.from(anInMessage.getHeader(&quot;JMSRedelivered&quot;)).whenNonNull().as(o -&gt; (Boolean) o).to(aPayload::setRedelivered);</span>
+<span class="fc" id="L69">      mapper.from(anInMessage.getHeader(&quot;JMSTimestamp&quot;)).whenNonNull().as(o -&gt; (Long) o).to(aPayload::setTimestamp);</span>
+<span class="pc" id="L70">      mapper.from(anInMessage.getHeader(&quot;JMSReplyTo&quot;)).whenNonNull().as(d -&gt; this.toDestination((javax.jms.Destination) d)).to(aPayload::setReplyTo);</span>
+
+<span class="fc" id="L72">      this.objectMapper.writeValue(theOutputStream, aPayload);</span>
+<span class="fc" id="L73">   }</span>
+
+   @Override
+   public Object unmarshal(final Exchange theExchange, final InputStream theInputStream) throws Exception {
+<span class="nc" id="L77">      return this.objectMapper.readValue(theInputStream, Payload.class);</span>
+   }
+
+   @Override
+   public void start() {
+      //No-op
+<span class="fc" id="L83">   }</span>
+
+   @Override
+   public void stop() {
+      //No-op
+<span class="fc" id="L88">   }</span>
+
+   private Destination toDestination(final javax.jms.Destination theJMSDestination) {
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">      if (theJMSDestination == null) {</span>
+         // Null input; return null output
+<span class="nc" id="L93">         return null;</span>
+      }
+<span class="fc" id="L95">      return Stub.of(Destination.class, d -&gt; {</span>
+         try {
+<span class="fc" id="L97">            d.setDestinationType(theJMSDestination.getClass().getName());</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">            if (theJMSDestination instanceof Topic) {</span>
+<span class="nc" id="L99">               d.setName(((Topic) theJMSDestination).getTopicName());</span>
+            }
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">            else if (theJMSDestination instanceof Queue) {</span>
+<span class="fc" id="L102">               d.setName(((Queue) theJMSDestination).getQueueName());</span>
+            }
+         }
+<span class="nc" id="L105">         catch (JMSException e) {</span>
+<span class="nc" id="L106">            log.error(&quot;Unable to obtain JMS destination name from {}&quot;, ToStringBuilder.reflectionToString(theJMSDestination, SIMPLE_STYLE), e);</span>
+<span class="fc" id="L107">         }</span>
+<span class="fc" id="L108">      });</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.7.202105040129</span></div></body></html>

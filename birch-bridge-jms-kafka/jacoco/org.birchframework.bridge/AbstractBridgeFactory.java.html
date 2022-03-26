@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractBridgeFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-bridge-jms-kafka</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.bridge</a> &gt; <span class="el_source">AbstractBridgeFactory.java</span></div><h1>AbstractBridgeFactory.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.bridge;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import javax.jms.JMSException;
+import com.google.common.base.Throwables;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.Exchange;
+import org.apache.camel.builder.DeadLetterChannelBuilder;
+import org.apache.camel.builder.DefaultErrorHandlerBuilder;
+import org.apache.camel.builder.ErrorHandlerBuilder;
+import org.apache.camel.builder.LambdaRouteBuilder;
+import org.apache.camel.model.RouteDefinition;
+import org.apache.camel.spi.CamelLogger;
+import org.apache.camel.spring.spi.SpringTransactionPolicy;
+import org.apache.camel.spring.spi.TransactionErrorHandlerBuilder;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.birchframework.configuration.BirchProperties.BridgeProperties;
+import org.birchframework.configuration.BirchProperties.BridgesGlobalConfigs;
+import org.birchframework.framework.metric.RateGauge;
+import org.springframework.util.CollectionUtils;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.camel.Exchange.*;
+import static org.apache.camel.LoggingLevel.WARN;
+import static org.apache.commons.lang3.builder.ToStringStyle.SIMPLE_STYLE;
+
+/**
+ * Interface for bridge factories for use by SPI.
+ * @author Keivan Khalichi
+ */
+@Getter
+<span class="fc" id="L61">@RequiredArgsConstructor</span>
+<span class="fc" id="L62">@Slf4j</span>
+public abstract class AbstractBridgeFactory {
+
+   public static final String METRIC_PREFIX = &quot;birch.bridge.message&quot;;
+   public static final String BRIDGE_TAG    = &quot;bridge&quot;;
+
+<span class="fc" id="L68">   private final BridgeProperties.BridgeSource source;</span>
+
+   /**
+    * Create bridge route and register it with the Camel context.
+    * @param theName the bean name
+    * @param theProperties the bridge properties
+    * @param theGlobalConfigs whether bridge is auto-started at creation
+    * @return the newly created and registered route
+    */
+   @SuppressWarnings(&quot;UnusedReturnValue&quot;)
+   public abstract LambdaRouteBuilder createBridge(String theName, BridgeProperties theProperties, BridgesGlobalConfigs theGlobalConfigs)
+                   throws Exception;
+
+   protected abstract SourceProcessor createSourceProcessor(String theName, BridgeProperties theProperties);
+
+   @SuppressWarnings({&quot;UnusedReturnValue&quot;, &quot;VariableArgumentMethod&quot;})
+   protected RateGauge registerGauge(final BridgeProperties theProperties, final String theBridgeName,
+                                     final String theMetricName, final String theMetricDescription, final MeterRegistry theMeterRegistry,
+                                     final Tag... theAdditionalTags) {
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">      final List&lt;Tag&gt; aTags = new ArrayList&lt;&gt;(ArrayUtils.isEmpty(theAdditionalTags) ? Collections.emptyList() : Arrays.asList(theAdditionalTags));</span>
+<span class="fc" id="L88">      aTags.add(Tag.of(BRIDGE_TAG, theBridgeName));</span>
+<span class="fc" id="L89">      aTags.add(Tag.of(&quot;source.type&quot;, theProperties.getSource().toString()));</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">      if (theProperties.getBridgeType() != null) {</span>
+<span class="nc" id="L91">         aTags.add(Tag.of(&quot;bridge.type&quot;, theProperties.getBridgeType().toString()));</span>
+      }
+
+<span class="pc bpc" id="L94" title="2 of 3 branches missed.">      switch (theProperties.getSource()) {</span>
+         case JMS:
+<span class="fc" id="L96">            aTags.add(Tag.of(&quot;source&quot;, theProperties.getJms().destination().getName()));</span>
+<span class="fc" id="L97">            aTags.add(Tag.of(&quot;target&quot;, theProperties.getKafka().getTopic()));</span>
+<span class="fc" id="L98">            break;</span>
+         case KAFKA:
+<span class="nc" id="L100">            aTags.add(Tag.of(&quot;source&quot;, theProperties.getKafka().getTopic()));</span>
+<span class="nc" id="L101">            aTags.add(Tag.of(&quot;target&quot;, theProperties.getJms().destination().getName()));</span>
+            break;
+      }
+
+<span class="fc" id="L105">      return RateGauge.builder()</span>
+<span class="fc" id="L106">                      .withName(theMetricName)</span>
+<span class="fc" id="L107">                      .withDescription(theMetricDescription)</span>
+<span class="fc" id="L108">                      .withTags(aTags)</span>
+<span class="fc" id="L109">                      .withRegistry(theMeterRegistry)</span>
+<span class="fc" id="L110">                      .register();</span>
+   }
+
+   protected ErrorHandlerBuilder errorHandlerBuilder(final BridgesGlobalConfigs theGlobalConfigs,
+                                                     @Nullable SpringTransactionPolicy theTXPolicy,
+                                                     final RateGauge theErrorGauge,
+                                                     @Nullable final Consumer&lt;Exchange&gt; theErrorConsumer,
+                                                     @Nullable final Supplier&lt;String&gt; theDeadLetterURISupplier) {
+      final DefaultErrorHandlerBuilder anErrorHandlerBuilder;
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">      if (theDeadLetterURISupplier == null) {</span>
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">         if (theTXPolicy == null) {</span>
+<span class="nc" id="L121">            anErrorHandlerBuilder = new DefaultErrorHandlerBuilder();</span>
+         }
+         else {
+            // Create transaction error handler
+<span class="fc" id="L125">            final var aTXErrorHandlerBuilder = new TransactionErrorHandlerBuilder();</span>
+<span class="fc" id="L126">            aTXErrorHandlerBuilder.setSpringTransactionPolicy(theTXPolicy);</span>
+<span class="fc" id="L127">            anErrorHandlerBuilder = aTXErrorHandlerBuilder;</span>
+<span class="fc" id="L128">         }</span>
+      }
+      else {
+         // Create dead letter channel handler
+<span class="nc" id="L132">         anErrorHandlerBuilder = new DeadLetterChannelBuilder(theDeadLetterURISupplier.get());</span>
+      }
+
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">      if (theGlobalConfigs.getMaxRedeliveries() == 0) {</span>
+<span class="pc" id="L136">         anErrorHandlerBuilder.onExceptionOccurred(exchange -&gt; this.processRedelivery(exchange, theErrorGauge, theErrorConsumer, true));</span>
+      }
+      else {
+<span class="nc" id="L139">         anErrorHandlerBuilder.maximumRedeliveries(theGlobalConfigs.getMaxRedeliveries())</span>
+<span class="nc" id="L140">                              .redeliveryDelay(theGlobalConfigs.getRedeliveryDelay().toMillis())</span>
+<span class="nc" id="L141">                              .retriesExhaustedLogLevel(WARN)</span>
+<span class="nc" id="L142">                              .useOriginalMessage()</span>
+<span class="nc" id="L143">                              .logExhausted(true)</span>
+<span class="nc" id="L144">                              .logRetryAttempted(true)</span>
+<span class="nc" id="L145">                              .onRedelivery(exchange -&gt; this.processRedelivery(exchange, theErrorGauge, theErrorConsumer, false));</span>
+
+<span class="nc bnc" id="L147" title="All 2 branches missed.">         if (theGlobalConfigs.isExponentialBackOff()) {</span>
+<span class="nc" id="L148">            anErrorHandlerBuilder.useExponentialBackOff()</span>
+<span class="nc" id="L149">                                 .maximumRedeliveryDelay(theGlobalConfigs.getMaximumRedeliveryDelay().toMillis());</span>
+         }
+      }
+
+<span class="fc" id="L153">      anErrorHandlerBuilder.logExhaustedMessageHistory(false)</span>
+<span class="fc" id="L154">                           .logNewException(false)</span>
+<span class="fc" id="L155">                           .logHandled(false)</span>
+<span class="fc" id="L156">                           .logStackTrace(false)</span>
+<span class="fc" id="L157">                           .logRetryStackTrace(false)</span>
+<span class="fc" id="L158">                           .logger(new CamelLogger(log));</span>
+
+<span class="fc" id="L160">      return anErrorHandlerBuilder;</span>
+   }
+
+   protected String propertiesFilterPattern(final Set&lt;String&gt; thePropertyNames) {
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">      if (CollectionUtils.isEmpty(thePropertyNames)) {</span>
+<span class="fc" id="L165">         return null;</span>
+      }
+      // Match header keys except for the ones to filter; so it will remove all other headers
+<span class="nc" id="L168">      return String.format(&quot;^(?!%s).*$&quot;, thePropertyNames.stream().map(prop -&gt; String.format(&quot;%s$&quot;, prop.strip())).collect(Collectors.joining(&quot;|&quot;)));</span>
+   }
+
+   private void processRedelivery(final Exchange theExchange, final RateGauge theErrorGauge,
+                                  final Consumer&lt;Exchange&gt; theErrorConsumer, final boolean theIsFastFail) {
+<span class="nc" id="L173">      final var aMessage = theExchange.getIn();</span>
+<span class="nc bnc" id="L174" title="All 4 branches missed.">      if (theIsFastFail || aMessage.getHeader(REDELIVERY_COUNTER).equals(aMessage.getHeader(REDELIVERY_MAX_COUNTER))) {</span>
+<span class="nc" id="L175">         theErrorGauge.increment();</span>
+<span class="nc" id="L176">         final var anException = ObjectUtils.defaultIfNull(theExchange.getException(), aMessage.getHeader(EXCEPTION_CAUGHT, Throwable.class));</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">         if (anException == null) {</span>
+<span class="nc" id="L178">            log.error(&quot;Error in MessageId: {}; Redeliveries: {}; Headers: {}; Body: {}&quot;,</span>
+<span class="nc" id="L179">                      aMessage.getMessageId(),</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                      theIsFastFail ? 0 : aMessage.getHeader(REDELIVERY_COUNTER),</span>
+<span class="nc" id="L181">                      aMessage.getHeaders().toString(),</span>
+<span class="nc" id="L182">                      this.bodyString(aMessage.getBody()));</span>
+         }
+<span class="nc bnc" id="L184" title="All 2 branches missed.">         else if (anException instanceof JMSException) {</span>
+<span class="nc" id="L185">            final var aLinkedException = ((JMSException) anException).getLinkedException();</span>
+<span class="nc" id="L186">            log.error(&quot;{}: {}; MessageId: {}; Linked exception: {}: {}; Redeliveries: {}; Headers: {}; Body: {}&quot;,</span>
+<span class="nc" id="L187">                      anException.getClass().getName(),</span>
+<span class="nc" id="L188">                      Throwables.getRootCause(anException).getMessage(),</span>
+<span class="nc" id="L189">                      aMessage.getMessageId(),</span>
+<span class="nc" id="L190">                      aLinkedException.getClass().getName(),</span>
+<span class="nc" id="L191">                      aLinkedException.getMessage(),</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                      theIsFastFail ? 0 : aMessage.getHeader(REDELIVERY_COUNTER),</span>
+<span class="nc" id="L193">                      aMessage.getHeaders().toString(),</span>
+<span class="nc" id="L194">                      this.bodyString(aMessage.getBody()));</span>
+<span class="nc" id="L195">         }</span>
+         else {
+<span class="nc" id="L197">            log.error(&quot;{}: {}; MessageId: {}; Redeliveries: {}; Headers: {}; Body: {}&quot;,</span>
+<span class="nc" id="L198">                      anException.getClass().getName(),</span>
+<span class="nc" id="L199">                      Throwables.getRootCause(anException).getMessage(),</span>
+<span class="nc" id="L200">                      aMessage.getMessageId(),</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                      theIsFastFail ? 0 : aMessage.getHeader(REDELIVERY_COUNTER),</span>
+<span class="nc" id="L202">                      aMessage.getHeaders().toString(),</span>
+<span class="nc" id="L203">                      this.bodyString(aMessage.getBody()));</span>
+         }
+<span class="nc bnc" id="L205" title="All 2 branches missed.">         if (theErrorConsumer != null) {</span>
+<span class="nc" id="L206">            theErrorConsumer.accept(theExchange);</span>
+         }
+      }
+<span class="nc" id="L209">   }</span>
+
+   protected RouteDefinition addBridgePolicy(final RouteDefinition theRoute, final RateGauge theInGauge, final RateGauge theOutGauge) {
+<span class="fc" id="L212">      try(var aBridgeRoutePolicy = new BridgeRoutePolicy(theInGauge, theOutGauge)) {</span>
+<span class="fc" id="L213">         return theRoute.routePolicy(aBridgeRoutePolicy);</span>
+      }
+<span class="nc" id="L215">      catch (Exception e) {</span>
+<span class="nc" id="L216">         final var aRootCause = Throwables.getRootCause(e);</span>
+<span class="nc" id="L217">         log.warn(&quot;Exception occurred configuring route policy; Exception: {}; Message: {}&quot;, aRootCause.getClass().getName(), aRootCause.getMessage());</span>
+      }
+<span class="nc" id="L219">      return theRoute;</span>
+   }
+
+   private String bodyString(final Object aBody) {
+<span class="nc bnc" id="L223" title="All 2 branches missed.">      if (aBody == null) {</span>
+<span class="nc" id="L224">         return null;</span>
+      }
+<span class="nc bnc" id="L226" title="All 2 branches missed.">      if (aBody instanceof String) {</span>
+<span class="nc" id="L227">         return (String) aBody;</span>
+      }
+<span class="nc bnc" id="L229" title="All 2 branches missed.">      if (aBody instanceof byte[]) {</span>
+<span class="nc" id="L230">         return StringUtils.toEncodedString((byte[]) aBody, UTF_8);</span>
+      }
+<span class="nc bnc" id="L232" title="All 2 branches missed.">      if (aBody instanceof Map) {</span>
+<span class="nc" id="L233">         return aBody.toString();</span>
+      }
+<span class="nc" id="L235">      return ToStringBuilder.reflectionToString(aBody, SIMPLE_STYLE);</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.7.202105040129</span></div></body></html>

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KafkaToJMSBridgeFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-bridge-jms-kafka</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.bridge</a> &gt; <span class="el_source">KafkaToJMSBridgeFactory.java</span></div><h1>KafkaToJMSBridgeFactory.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.bridge;
+
+import java.util.Arrays;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import javax.jms.QueueConnectionFactory;
+import javax.jms.TopicConnectionFactory;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import org.apache.camel.Exchange;
+import org.apache.camel.builder.LambdaRouteBuilder;
+import org.apache.camel.model.ProcessorDefinition;
+import org.apache.camel.model.RouteDefinition;
+import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.spring.spi.SpringTransactionPolicy;
+import org.apache.commons.lang3.StringUtils;
+import org.birchframework.bridge.dataformat.PayloadDataFormat;
+import org.birchframework.configuration.BirchProperties.BridgeProperties;
+import org.birchframework.configuration.BirchProperties.BridgesGlobalConfigs;
+import org.birchframework.configuration.ConfigurationException;
+import org.birchframework.dto.payload.DestinationType;
+import org.birchframework.framework.beans.Beans;
+
+import static org.apache.camel.LoggingLevel.INFO;
+import static org.birchframework.bridge.TransactedPolicyType.*;
+import static org.birchframework.configuration.BirchProperties.BridgeProperties.BridgeSource.KAFKA;
+import static org.birchframework.dto.BirchErrorCode.*;
+
+/**
+ * Factory that creates Kafka/JMS message bridges.  Supports ActiveMQ, IBM MQ, and Tibco EMS JMS brokers.  Requires dependencies on exactly
+ * one of the 3 supported JMS providers.  Each of the supported JMS providers are configured via their own auto-configurations.  This
+ * programmatic configuration merely provides the source/destination configuration, including their respective listeners.
+ * @author Keivan Khalichi
+ */
+public class KafkaToJMSBridgeFactory extends AbstractBridgeFactory {
+
+   private final SpringCamelContext context;
+   private final MeterRegistry      meterRegistry;
+
+   public KafkaToJMSBridgeFactory(final SpringCamelContext theContext, final MeterRegistry theMeterRegistry) {
+<span class="fc" id="L55">      super(KAFKA);</span>
+<span class="fc" id="L56">      this.context       = theContext;</span>
+<span class="fc" id="L57">      this.meterRegistry = theMeterRegistry;</span>
+<span class="fc" id="L58">   }</span>
+
+   /** {@inheritDoc} */
+   @Override
+   @SuppressWarnings({&quot;AutoBoxing&quot;, &quot;unchecked&quot;, &quot;DuplicatedCode&quot;})
+   public LambdaRouteBuilder createBridge(final String theName, final BridgeProperties theProperties, final BridgesGlobalConfigs theGlobalConfigs)
+                             throws Exception {
+      // Configure bridge consumer
+<span class="nc bnc" id="L66" title="All 2 branches missed.">      if (StringUtils.isBlank(theProperties.getKafka().getTopic())) {</span>
+<span class="nc" id="L67">         throw new ConfigurationException(B31040);</span>
+      }
+<span class="nc bnc" id="L69" title="All 2 branches missed.">      if (theProperties.getKafka().getTopic().equals(theProperties.getKafka().getDeadLetterTopic())) {</span>
+<span class="nc" id="L70">         throw new ConfigurationException(B31043);</span>
+      }
+<span class="nc bnc" id="L72" title="All 2 branches missed.">      final var anIsTopicTarget = theProperties.getJms().destination().getType() == DestinationType.TOPIC;</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">      final var aRouteCF = anIsTopicTarget</span>
+<span class="nc" id="L74">                         ? Arrays.stream(context.getApplicationContext().getBeanNamesForType(TopicConnectionFactory.class)).findFirst().orElse(null)</span>
+<span class="nc" id="L75">                         : Arrays.stream(context.getApplicationContext().getBeanNamesForType(QueueConnectionFactory.class)).findFirst().orElse(null);</span>
+
+      // CPD-OFF
+<span class="nc" id="L78">      final var anInGauge = this.registerGauge(theProperties, theName, String.format(&quot;%s.rate&quot;, METRIC_PREFIX),</span>
+                                               &quot;Rate of incoming messages received per second, since last sampling&quot;,
+<span class="nc" id="L80">                                               this.meterRegistry, Tag.of(&quot;state&quot;, &quot;received&quot;));</span>
+<span class="nc" id="L81">      final var anOutGauge = this.registerGauge(theProperties, theName, String.format(&quot;%s.rate&quot;, METRIC_PREFIX),</span>
+                                                &quot;Rate of outgoing messages sent per second, since last sampling&quot;,
+<span class="nc" id="L83">                                                this.meterRegistry, Tag.of(&quot;state&quot;, &quot;sent&quot;));</span>
+<span class="nc" id="L84">      final var anErrorGauge = this.registerGauge(theProperties, theName, String.format(&quot;%s.rate&quot;, METRIC_PREFIX),</span>
+                                                  &quot;Rate of errors per second, since last sampling&quot;,
+<span class="nc" id="L86">                                                  this.meterRegistry, Tag.of(&quot;state&quot;, &quot;error&quot;));</span>
+
+<span class="nc" id="L88">      final var aFilterPredicate       = (Predicate&lt;Exchange&gt;) Beans.findBeanOrCreateInstance(theProperties.getFilterPredicate());</span>
+<span class="nc" id="L89">      final var anAfterReceiveConsumer = (Consumer&lt;Exchange&gt;) Beans.findBeanOrCreateInstance(theProperties.getAfterReceiveConsumer());</span>
+<span class="nc" id="L90">      final var aBeforeSendConsumer    = (Consumer&lt;Exchange&gt;) Beans.findBeanOrCreateInstance(theProperties.getBeforeSendConsumer());</span>
+<span class="nc" id="L91">      final var anErrorConsumer        = (Consumer&lt;Exchange&gt;) Beans.findBeanOrCreateInstance(theProperties.getErrorConsumer());</span>
+
+<span class="nc bnc" id="L93" title="All 2 branches missed.">      final var aTXPolicyBeanRef       = anIsTopicTarget ? TOPIC.getPolicyBeanName() : QUEUE.getPolicyBeanName();</span>
+<span class="nc" id="L94">      final var aDeadLetterTopic       = theProperties.getKafka().getDeadLetterTopic();</span>
+<span class="nc" id="L95">      final var anErrorHandlerBuilder  = this.errorHandlerBuilder(</span>
+         theGlobalConfigs,
+<span class="nc bnc" id="L97" title="All 2 branches missed.">         theProperties.isTransacted() ? this.context.getApplicationContext().getBean(aTXPolicyBeanRef, SpringTransactionPolicy.class) : null,</span>
+         anErrorGauge,
+         anErrorConsumer,
+<span class="nc bnc" id="L100" title="All 2 branches missed.">         StringUtils.isBlank(aDeadLetterTopic) ? null : () -&gt; String.format(&quot;kafka:%s&quot;, aDeadLetterTopic)</span>
+      );
+
+<span class="nc" id="L103">      final String aPropertiesFilterPattern = this.propertiesFilterPattern(theProperties.getFilterProperties());</span>
+
+<span class="nc" id="L105">      final var aSourceProcessor = this.createSourceProcessor(theName, theProperties);</span>
+
+<span class="nc" id="L107">      final Supplier&lt;String&gt; aFromURI = () -&gt; {</span>
+<span class="nc" id="L108">         var aURI = String.format(&quot;kafka:%1$s?groupId=%2$s&amp;consumersCount=%3$d&quot;,</span>
+<span class="nc" id="L109">                                  theProperties.getKafka().getTopic(), StringUtils.defaultIfBlank(theProperties.getKafka().getGroupId(), theName),</span>
+<span class="nc" id="L110">                                  theProperties.getConcurrentConsumers());</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">         if (StringUtils.isNotBlank(theProperties.getKafka().getListenerId())) {</span>
+<span class="nc" id="L112">            aURI = String.format(&quot;%s&amp;clientId=%s&quot;, aURI, theProperties.getKafka().getListenerId());</span>
+         }
+<span class="nc" id="L114">         return aURI;</span>
+      };
+
+<span class="nc" id="L117">      return rb -&gt; {</span>
+         // Route definition
+<span class="nc" id="L119">         ProcessorDefinition&lt;?&gt; route = rb.from(aFromURI.get())</span>
+<span class="nc" id="L120">                                          .routeId(theName)</span>
+<span class="nc" id="L121">                                          .autoStartup(theGlobalConfigs.isAutoStart())</span>
+<span class="nc" id="L122">                                          .errorHandler(anErrorHandlerBuilder);</span>
+
+<span class="nc" id="L124">         route = this.addBridgePolicy((RouteDefinition) route, anInGauge, anOutGauge);</span>
+
+<span class="nc" id="L126">         route = Beans.invokeIfNotNull(aTXPolicyBeanRef, route::transacted, route);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">         route = aFilterPredicate == null ? route : route.filter(aFilterPredicate::test);</span>
+<span class="nc" id="L128">         route = route.log(INFO, &quot;Incoming message: Body: ${bodyOneLine}&quot;);</span>
+<span class="nc" id="L129">         route = Beans.invokeIfNotNull(anAfterReceiveConsumer, route.process()::exchange, route);</span>
+<span class="nc" id="L130">         route = route.unmarshal().custom(PayloadDataFormat.BEAN_NAME)</span>
+<span class="nc" id="L131">                      .process().message(aSourceProcessor::processCorrelationID)</span>
+<span class="nc" id="L132">                      .process(aSourceProcessor);</span>
+<span class="nc" id="L133">         route = Beans.invokeIfNotNull(aPropertiesFilterPattern, route::removeHeaders, route);</span>
+<span class="nc" id="L134">         route = Beans.invokeIfNotNull(aBeforeSendConsumer, route.process()::exchange, route);</span>
+<span class="nc" id="L135">         route.log(INFO, &quot;Outgoing message: Headers: ${headers}; Body: ${bodyOneLine}&quot;)</span>
+<span class="nc" id="L136">              .toF(&quot;jms:%s:%s?connectionFactory=%s&amp;deliveryMode=2&quot;,</span>
+<span class="nc" id="L137">                   theProperties.getJms().destination().getDestinationType(), theProperties.getJms().destination().getName(), aRouteCF)</span>
+<span class="nc" id="L138">              .stop();</span>
+<span class="nc" id="L139">      };</span>
+      // CPD-ON
+   }
+
+   @Override
+   protected SourceProcessor createSourceProcessor(final String theName, final BridgeProperties theProperties) {
+<span class="nc" id="L145">      return new KafkaSourceProcessor(theProperties);</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.7.202105040129</span></div></body></html>

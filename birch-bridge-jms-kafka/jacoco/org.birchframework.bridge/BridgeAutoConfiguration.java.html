@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BridgeAutoConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">birch-bridge-jms-kafka</a> &gt; <a href="index.source.html" class="el_package">org.birchframework.bridge</a> &gt; <span class="el_source">BridgeAutoConfiguration.java</span></div><h1>BridgeAutoConfiguration.java</h1><pre class="source lang-java linenums">/*===============================================================
+ = Copyright (c) 2021 Birch Framework
+ = This program is free software: you can redistribute it and/or modify
+ = it under the terms of the GNU General Public License as published by
+ = the Free Software Foundation, either version 3 of the License, or
+ = any later version.
+ = This program is distributed in the hope that it will be useful,
+ = but WITHOUT ANY WARRANTY; without even the implied warranty of
+ = MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ = GNU General Public License for more details.
+ = You should have received a copy of the GNU General Public License
+ = along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ ==============================================================*/
+package org.birchframework.bridge;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import javax.annotation.PostConstruct;
+import javax.jms.ConnectionFactory;
+import javax.jms.QueueConnectionFactory;
+import javax.jms.TopicConnectionFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.CamelContext;
+import org.apache.camel.builder.LambdaRouteBuilder;
+import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.zookeeper.ZooKeeperMessage;
+import org.apache.camel.spring.boot.CamelAutoConfiguration;
+import org.apache.camel.spring.spi.SpringTransactionPolicy;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.birchframework.bridge.dataformat.ServiceMessageDataFormat;
+import org.birchframework.configuration.BirchProperties;
+import org.birchframework.configuration.BirchProperties.BridgeProperties;
+import org.birchframework.configuration.BirchProperties.BridgeProperties.BridgeSource;
+import org.birchframework.configuration.BirchProperties.BridgesGlobalConfigs;
+import org.birchframework.configuration.ConfigurationException;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.GenericApplicationContext;
+import org.springframework.jms.connection.JmsTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.util.CollectionUtils;
+
+import static org.apache.camel.LoggingLevel.DEBUG;
+import static org.birchframework.dto.BirchErrorCode.*;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+
+/**
+ * Auto-configuration for the bridge(s).  Supports ActiveMQ, IBM MQ, and Tibco EMS.  Requires dependencies on exactly one of the 3
+ * supported JMS providers.  Each of the supported JMS providers are configured via their own auto-configurations.  This auto-configuration merely
+ * provides the source/destination configuration, including their respective listeners.
+ * The configuration supports multiple bridges, as long as the underlying JMS provider for all bridges is one of the aforementioned.
+ * &lt;p/&gt;
+ * Available configurations are:
+ * &lt;pre&gt;
+ * birch:
+ *   kafka:
+ *     admin:
+ *       zookeeper-servers: zk1.aws.com:2181             # Comma separated set of Zookeeper server address:port(s); when defined, active affinity is persisted in Zookeeper
+ *   bridges-global-configs:                             # Global configs for bridges
+ *     max-redeliveries: 0                               # Maximum number of redelivery attempts when the bridge route encounters an error; defaults to 0, which means no redelivery attempt; has no effect if DLQ/T is not specified in bridge
+ *     redelivery-delay: 1s                              # Fixed interval of time between redelivery retries when the bridge route encounters an error; defaults to 1 second; has no effect if DLQ/T is not specified in bridge
+ *     max-redelivery-delay: 1m                          # Max interval of time between redelivery retries when exponential-backoff is true; defaults to 1 minute; has no effect if DLQ/T is not specified in bridge
+ *     exponential-backoff: false                        # Exponentially increase delay interval of time between retries by factor of 2.0 up to max-redelivery-delay; defaults to false
+ *     affinity: region-1                                # Specifies an affinity to which the bridges defined by this microservice are associated, which dictates that bridges react to service actions for this affinity, only
+ *     service-topic: common-service-topic               # Topic for sending and receiving service actions, such as bridge start/stop
+ *     auto-start: true                                  # Determines whether or not bridges are to be started upon Spring Boot application startup; defaults to true
+ *     zookeeper-base-path: /birch/bridges               # Base path under which the 'active-affinity' znode will be stored within Zookeeper; defaults to '/birch/bridges'
+ *   bridges:                                            # Definition of bridges
+ *     my-jms-bridge:                                    # Bridge name; bridge definition defined below is for this bridge
+ *       enabled: true                                   # When true, bridge is created by the service, when false, bridge is not created; defaults to true
+ *       source: jms                                     # Bridge source type: jms or kafka
+ *       strip-newline: true                             # when true, strips newline from the entire payload; defaults to true
+ *       filter-properties: prop1,prop2                  # Comma separated set of header properties of the incoming JMS message to forward to the target; all other properties are removed; optional
+ *       after-receive-consumer: io.jms.AfterReceive     # FQCN of a {@code Consumer&lt;Exchange&gt;} implementation that provides a hook to perform pre-processing of an exchange after being received by the bridge; optional
+ *       before-send-consumer: io.jms.BeforeSend         # FQCN of a {@code Consumer&lt;Exchange&gt;} implementation that provides a hook to perform pre-processing of an exchange before being sent by the bridge; optional
+ *       error-consumer: io.jms.WhenError                # FQCN of a {@code Consumer&lt;Exchange&gt;} implementation that provides a hook to perform processing of an exchange when an exception occurs within the bridge route; optional
+ *       concurrent-consumers: 1                         # Number of concurrent JMS listeners; defaults to 1 (note, min value is always 1)
+ *       transacted: true                                # When true, the bridge operates in a transactional fashion; defaults to true
+ *       jms:                                            # Since source is JMS, this JMS definition is for a JMS consumer
+ *         queue: test-queue-in                          # Queue name from which this consumer receives messages; also specifying topic will throw an exception
+ *         topic: test-topic-in                          # Topic name from which this consumer receives messages; also specifying queue will throw an exception
+ *         key-property: key                             # JMS property to use for the Kafka topic key; also specifying key-regex will throw an exception; optional
+ *         key-regex: .*((World)!)$                      # Extracts Kafka topic key value from payload via regular expression; also specifying key-property will throw an exception; optional
+ *         key-regex-capture: 2                          # Extracts value in key-regex from the specified capture group; defaults to 0, which returns the entire matched regex
+ *         correlation-id-property:                      # JMS property from which to obtain the correlation ID
+ *         override-correlation-id: true                 # When true, overrides JMS correlation ID with a UUID generated at the time of message consumption; defaults to true
+ *         selector: someProperty IS NOT NULL            # JMS message selector; see this &lt;a href=&quot;https://timjansen.github.io/jarfiller/guide/jms/selectors.xhtml&quot;&gt;documentation&lt;a/&gt; on how to work with message selectors; optional
+ *         message-type: text                            # Type of the incoming JMS message body; supported values are: text, bytes, object, map; defaults to text
+ *         dead-letter-queue: dlq-1                      # When specified, messages that produce exceptions will be sent to this JMS queue; optional
+ *       kafka:                                          # Since source is JMS, this Kafka definition is for a Kafka producer
+ *         topic: test-topic-in                          # Kafka topic
+ *     my-kafka-bridge:                                  # Bridge name; bridge definition defined below is for this bridge
+ *       source: kafka                                   # Bridge source type: jms or kafka
+ *       strip-newline: true                             # When true, strips newline from the entire payload; defaults to true
+ *       after-receive-consumer: io.kafka.AfterReceive   # FQCN of a {@code Consumer&lt;Exchange&gt;} implementation that provides a hook to perform pre-processing of an exchange after being received by the bridge; optional
+ *       before-send-consumer: io.kafka.BeforeSend       # FQCN of a {@code Consumer&lt;Exchange&gt;} implementation that provides a hook to perform pre-processing of an exchange before being sent by the bridge; optional
+ *       error-consumer: io.jms.WhenError                # FQCN of a {@code Consumer&lt;Exchange&gt;} implementation that provides a hook to perform processing of an exchange when an exception occurs within the bridge route; optional
+ *       concurrent-consumers: 1                         # Number of Kafka consumers; should match the number of partitions on the Kafka topic; defaults to 1
+ *       kafka:                                          # Since source is Kafka, this Kafka definition is for a Kafka consumer
+ *         topic: test-topic-out                         # Kafka topic from which this consumer receives messages
+ *         listener-id: bridge1Consumer                  # Optionally sets listener ID of this Kafka consumer; optional; providing this value in a multi-consumer configuration can be problematic
+ *         group-id: bridge-kafka                        # Optionally sets the group ID, defaults to the listener-id (e.g. bridge1Consumer in this example)
+ *         dead-letter-topic: dlt-1                      # When specified, messages that produce exceptions will be sent to this Kafka topic; optional
+ *       jms:                                            # Since source is Kafka, this JMS definition is for a JMS producer
+ *         queue: test-queue-out                         # Queue name to which this produces sends messages; also specifying topic will throw an exception
+ *         topic: test-topic-in                          # Topic name to which this producer sends messages; also specifying queue will throw an exception
+ *         key-property: key                             # Optionally sets the Kafka topic key to the outgoing JMS property as a String, when the key value is not null
+ *         override-correlation-id: true                 # When true, overrides JMS correlation ID with a UUID generated at the time of message production; defaults to true
+ * &lt;/pre&gt;
+ * @author Keivan Khalichi
+ */
+@Configuration(proxyBeanMethods = false)
+@ComponentScan(basePackages = {
+   &quot;org.birchframework.bridge&quot;, &quot;org.birchframework.bridge.dataformat&quot;,
+   &quot;org.birchframework.framework.spring&quot;,
+   &quot;org.springframework.boot.autoconfigure.jackson&quot;})
+@EnableAutoConfiguration
+@EnableConfigurationProperties(BirchProperties.class)
+@AutoConfigureBefore(CamelAutoConfiguration.class)
+@AutoConfigureAfter(name = {&quot;org.springframework.boot.autoconfigure.jms.activemq.ActiveMQAutoConfiguration&quot;,
+                            &quot;com.ibm.mq.spring.boot.MQAutoConfiguration&quot;, &quot;org.birchframework.ems.EMSAutoConfiguration&quot;
+})
+<span class="fc" id="L139">@Slf4j</span>
+public class BridgeAutoConfiguration {
+
+<span class="fc" id="L142">   private static final Pattern znodeBasePathPattern = Pattern.compile(&quot;/(.*)&quot;);</span>
+
+   protected static final String START_ACTION = &quot;start&quot;;
+   protected static final String STOP_ACTION  = &quot;stop&quot;;
+
+   private final Map&lt;String, BridgeProperties&gt;            bridges;
+   private final Set&lt;String&gt;                              zookeeperEndpoints;
+<span class="fc" id="L149">   private final Map&lt;BridgeSource, AbstractBridgeFactory&gt; bridgeFactories = new HashMap&lt;&gt;(2);</span>
+   private final BridgesGlobalConfigs                     bridgesGlobalConfigs;
+   private final GenericApplicationContext                context;
+   private final CamelContext                             camelContext;
+
+<span class="fc" id="L154">   public BridgeAutoConfiguration(final BirchProperties theProperties, final GenericApplicationContext theContext, final CamelContext theCamelContext) {</span>
+<span class="fc" id="L155">      this.bridges              = theProperties.getBridges();</span>
+<span class="fc" id="L156">      this.bridgesGlobalConfigs = theProperties.getBridgesGlobalConfigs();</span>
+<span class="fc" id="L157">      this.zookeeperEndpoints   = theProperties.getKafka().getAdmin().getZookeeperServers();</span>
+<span class="fc" id="L158">      this.context              = theContext;</span>
+<span class="fc" id="L159">      this.camelContext         = theCamelContext;</span>
+<span class="fc" id="L160">   }</span>
+
+   /**
+    * Create bridges.
+    */
+   @PostConstruct
+   @SuppressWarnings(&quot;unchecked&quot;)
+   protected void init() {
+<span class="fc" id="L168">      this.registerTransactedPolicy(QueueConnectionFactory.class, TopicConnectionFactory.class);</span>
+
+<span class="fc" id="L170">      final var aBridgeFactoryBeans = this.context.getBeansOfType(AbstractBridgeFactory.class);</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">      if (CollectionUtils.isEmpty(aBridgeFactoryBeans)) {</span>
+<span class="nc" id="L172">         log.error(&quot;No bridge factory beans found&quot;);</span>
+      }
+      else {
+<span class="fc" id="L175">         aBridgeFactoryBeans.forEach((k, v) -&gt; this.bridgeFactories.put(v.getSource(), v));</span>
+
+<span class="fc" id="L177">         this.bridges.forEach((name, properties) -&gt; {</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">            if (properties.isEnabled()) {</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">               if (properties.getSource() == null) {</span>
+<span class="nc" id="L180">                  throw new ConfigurationException(B31010);</span>
+               }
+<span class="fc" id="L182">               final var aBridgeFactory = this.bridgeFactories.get(properties.getSource());</span>
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">               if (aBridgeFactory == null) {</span>
+<span class="nc" id="L184">                  throw new ConfigurationException(B31000);</span>
+               }
+               try {
+<span class="fc" id="L187">                  RouteBuilder.addRoutes(this.camelContext, aBridgeFactory.createBridge(name, properties, this.bridgesGlobalConfigs));</span>
+<span class="fc" id="L188">                  log.info(&quot;Created bridge {} with source {} and properties {}&quot;, name, aBridgeFactory.getSource(), properties);</span>
+               }
+<span class="nc" id="L190">               catch (Exception e) {</span>
+<span class="nc" id="L191">                  throw new ConfigurationException(B31048, e);</span>
+<span class="fc" id="L192">               }</span>
+<span class="fc" id="L193">            }</span>
+            else {
+<span class="nc" id="L195">               log.info(&quot;Bridge {} is disabled&quot;, name);</span>
+            }
+<span class="fc" id="L197">         });</span>
+      }
+<span class="fc" id="L199">   }</span>
+
+   @Bean
+   @ConditionalOnExpression(&quot;!'${birch.bridges-global-configs.affinity:}'.isEmpty() &amp;&amp; !'${birch.bridges-global-configs.service-topic:}'.isEmpty()&quot;)
+   @SuppressWarnings(&quot;AutoBoxing&quot;)
+   protected LambdaRouteBuilder bridgesRESTEndpoint(final BirchProperties theProperties) {
+<span class="fc" id="L205">      final var aZKBasePath = normalizeBasePath(theProperties.getBridgesGlobalConfigs().getZookeeperBasePath());</span>
+<span class="fc" id="L206">      final var aZKServers = String.join(&quot;,&quot;, this.zookeeperEndpoints);</span>
+<span class="fc" id="L207">      final var anAffinity = theProperties.getBridgesGlobalConfigs().getAffinity();</span>
+<span class="fc" id="L208">      final var aZKReadURI = String.format(&quot;zookeeper://%s/%s/active-affinity&quot;, aZKServers, aZKBasePath);</span>
+<span class="fc" id="L209">      final var aZKWriteURI = String.format(&quot;zookeeper://%s/%s/active-affinity?create=true&amp;createMode=PERSISTENT&quot;, aZKServers, aZKBasePath);</span>
+
+<span class="fc" id="L211">      return rb -&gt; {</span>
+<span class="fc" id="L212">         rb.rest(&quot;/routes&quot;)</span>
+<span class="fc" id="L213">           .id(&quot;bridges-endpoints&quot;)</span>
+<span class="fc" id="L214">           .post(&quot;/{action}&quot;)</span>
+<span class="fc" id="L215">              .route()</span>
+<span class="fc" id="L216">              .routeId(&quot;service-message-producer&quot;)</span>
+<span class="fc" id="L217">              .autoStartup(true)</span>
+<span class="pc" id="L218">              .filter(exchange -&gt; StringUtils.equalsAny((String) exchange.getIn().getHeader(&quot;action&quot;), START_ACTION, STOP_ACTION))</span>
+<span class="fc" id="L219">              .process(exchange -&gt; {</span>
+<span class="nc" id="L220">                 final var aMessage = exchange.getIn();</span>
+<span class="nc" id="L221">                 aMessage.setBody(new ServiceMessageDTO(anAffinity, aMessage.getHeader(&quot;action&quot;, String.class)));</span>
+<span class="nc" id="L222">              })</span>
+<span class="fc" id="L223">              .choice()</span>
+<span class="pc" id="L224">                 .when(exchange -&gt; StringUtils.isBlank(aZKServers))</span>
+<span class="fc" id="L225">                    .to(&quot;direct:kafka-broadcast&quot;)</span>
+<span class="fc" id="L226">                 .otherwise()</span>
+<span class="fc" id="L227">                    .multicast().to(&quot;direct:kafka-broadcast&quot;, &quot;direct:zookeeper-set&quot;)</span>
+<span class="fc" id="L228">              .end()</span>
+<span class="fc" id="L229">           .endRest()</span>
+<span class="fc" id="L230">           .get(&quot;/isActive&quot;)</span>
+<span class="fc" id="L231">              .produces(APPLICATION_JSON_VALUE)</span>
+<span class="fc" id="L232">              .route()</span>
+<span class="fc" id="L233">              .routeId(&quot;active-reader-producer&quot;)</span>
+<span class="fc" id="L234">              .choice()</span>
+<span class="pc" id="L235">                 .when(exchange -&gt; StringUtils.isBlank(aZKServers))</span>
+<span class="pc" id="L236">                    .transform().body(body -&gt; new SimpleEntry&lt;&gt;(&quot;error&quot;, &quot;Affinity state maintenance is not configured&quot;))</span>
+<span class="fc" id="L237">                 .endChoice()</span>
+<span class="fc" id="L238">                 .otherwise()</span>
+<span class="fc" id="L239">                    .setHeader(ZooKeeperMessage.ZOOKEEPER_OPERATION).constant(&quot;READ&quot;)</span>
+<span class="fc" id="L240">                    .to(aZKReadURI)</span>
+<span class="pc" id="L241">                    .transform().message(message -&gt; new SimpleEntry&lt;&gt;(&quot;isActive&quot;, StringUtils.equals(message.getBody(String.class), anAffinity)))</span>
+<span class="fc" id="L242">                 .endChoice()</span>
+<span class="fc" id="L243">              .end()</span>
+<span class="fc" id="L244">              .marshal().json()</span>
+<span class="fc" id="L245">              .log(DEBUG, &quot;${body}&quot;);</span>
+
+<span class="fc" id="L247">         rb.from(&quot;direct:kafka-broadcast&quot;)</span>
+<span class="fc" id="L248">           .marshal().custom(ServiceMessageDataFormat.BEAN_NAME)</span>
+<span class="fc" id="L249">           .toF(&quot;kafka:%s&quot;, theProperties.getBridgesGlobalConfigs().getServiceTopic());</span>
+
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">         if (StringUtils.isNotBlank(aZKServers)) {</span>
+<span class="fc" id="L252">            rb.from(&quot;direct:zookeeper-set&quot;)</span>
+<span class="fc" id="L253">              .setHeader(ZooKeeperMessage.ZOOKEEPER_OPERATION).constant(&quot;WRITE&quot;)</span>
+<span class="fc" id="L254">              .choice()</span>
+<span class="pc" id="L255">                 .when(exchange -&gt; StringUtils.equals(exchange.getIn().getBody(ServiceMessageDTO.class).getAction(), START_ACTION))</span>
+<span class="fc" id="L256">                    .transform().body(ServiceMessageDTO.class, ServiceMessageDTO::getAffinity)</span>
+<span class="fc" id="L257">                    .to(aZKWriteURI)</span>
+<span class="fc" id="L258">                    .log(DEBUG, &quot;${header[CamelZooKeeperNode]}: ${bodyOneLine}&quot;)</span>
+<span class="pc" id="L259">                 .when(exchange -&gt; StringUtils.equals(exchange.getIn().getBody(ServiceMessageDTO.class).getAction(), STOP_ACTION))</span>
+<span class="pc" id="L260">                    .setBody(exchange -&gt; &quot;&quot;)</span>
+<span class="fc" id="L261">                    .to(aZKWriteURI)</span>
+<span class="fc" id="L262">                    .log(DEBUG, &quot;${header[CamelZooKeeperNode]}: ${bodyOneLine}&quot;)</span>
+<span class="fc" id="L263">              .end();</span>
+         }
+<span class="fc" id="L265">      };</span>
+   }
+
+   @Bean
+   @ConditionalOnExpression(&quot;!'${birch.bridges-global-configs.affinity:}'.isEmpty() &amp;&amp; !'${birch.bridges-global-configs.service-topic:}'.isEmpty()&quot;)
+   protected LambdaRouteBuilder serviceMessageConsumer(final BirchProperties theProperties)
+                                throws UnknownHostException {
+<span class="fc" id="L272">      final var aBridgeNamesList = new ArrayList&lt;&gt;(this.bridges.keySet());</span>
+<span class="fc" id="L273">      final var aGroupID = String.format(&quot;%s-%s&quot;, InetAddress.getLocalHost().getHostName(), RandomStringUtils.random(5, true, false).toLowerCase());</span>
+<span class="fc" id="L274">      return rb -&gt; rb.fromF(&quot;kafka:%s?consumersCount=1&amp;groupId=%s&quot;, theProperties.getBridgesGlobalConfigs().getServiceTopic(), aGroupID)</span>
+<span class="fc" id="L275">                     .routeId(&quot;service-message-consumer&quot;)</span>
+<span class="fc" id="L276">                     .autoStartup(true)</span>
+<span class="fc" id="L277">                     .unmarshal().custom(ServiceMessageDataFormat.BEAN_NAME)</span>
+<span class="fc" id="L278">                     .filter(exchange -&gt; {</span>
+<span class="nc" id="L279">                        final var aPayload = exchange.getMessage().getBody(ServiceMessageDTO.class);</span>
+<span class="nc" id="L280">                        return StringUtils.equals(aPayload.getAffinity(), theProperties.getBridgesGlobalConfigs().getAffinity());</span>
+                     })
+<span class="pc" id="L282">                     .setHeader(&quot;actionText&quot;).body(ServiceMessageDTO.class, body -&gt; StringUtils.capitalize(body.getAction()))</span>
+<span class="fc" id="L283">                     .log(&quot;${header.actionText} bridges...&quot;)</span>
+<span class="fc" id="L284">                     .process(exchange -&gt; {</span>
+<span class="nc" id="L285">                        final var anAction = exchange.getIn().getBody(ServiceMessageDTO.class).getAction();</span>
+<span class="nc" id="L286">                        aBridgeNamesList.parallelStream().forEach(bridge -&gt; {</span>
+<span class="nc" id="L287">                           final var aURI = String.format(&quot;controlbus:route?routeId=%s&amp;action=%s&quot;, bridge, anAction);</span>
+<span class="nc" id="L288">                           exchange.getContext().createProducerTemplate().send(aURI, exchange);</span>
+<span class="nc" id="L289">                        });</span>
+<span class="nc" id="L290">                     })</span>
+<span class="fc" id="L291">                     .log(&quot;${header.actionText} completed.&quot;);</span>
+   }
+
+   /**
+    * Tries to find or creates a {@link JmsTransactionManager} only if the connection factory of the type provided in this method's parameter is
+    * found within the application context.  Once the transaction manager is obtained, registers a transaction policy within the bean registry using
+    * the that transaction manager.
+    * @param theConnectionFactoryTypes the connection factory types for which to register a transaction policy
+    */
+   @SuppressWarnings({&quot;VariableArgumentMethod&quot;, &quot;unchecked&quot;})
+   private void registerTransactedPolicy(final Class&lt;? extends ConnectionFactory&gt;... theConnectionFactoryTypes) {
+<span class="fc" id="L302">      Stream.of(theConnectionFactoryTypes).forEach(connectionFactoryClass -&gt; {</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">         final var aTransactedPolicyType = TopicConnectionFactory.class.isAssignableFrom(connectionFactoryClass) ? TransactedPolicyType.TOPIC : TransactedPolicyType.QUEUE;</span>
+         try {
+<span class="fc" id="L305">            final var aConnectionFactory = this.context.getBean(connectionFactoryClass);</span>
+<span class="fc" id="L306">            final Supplier&lt;PlatformTransactionManager&gt; aTransactionManagerSupplier = () -&gt; {</span>
+               try {
+<span class="nc" id="L308">                  return this.context.getBean(aTransactedPolicyType.getTxManagerBeanName(), PlatformTransactionManager.class);</span>
+               }
+<span class="fc" id="L310">               catch (NoSuchBeanDefinitionException e) {</span>
+<span class="fc" id="L311">                  log.info(&quot;No transaction manager found for {}; registering one&quot;, connectionFactoryClass.getName());</span>
+<span class="fc" id="L312">                  this.context.registerBean(aTransactedPolicyType.getTxManagerBeanName(), JmsTransactionManager.class,</span>
+<span class="fc" id="L313">                                            () -&gt; new JmsTransactionManager(aConnectionFactory));</span>
+<span class="fc" id="L314">                  return this.context.getBean(aTransactedPolicyType.getTxManagerBeanName(), PlatformTransactionManager.class);</span>
+               }
+            };
+<span class="fc" id="L317">            this.context.registerBean(aTransactedPolicyType.getPolicyBeanName(), SpringTransactionPolicy.class,</span>
+                                      () -&gt; {
+<span class="fc" id="L319">                                         final var aTXPolicy = new SpringTransactionPolicy(aTransactionManagerSupplier.get());</span>
+<span class="fc" id="L320">                                         aTXPolicy.setPropagationBehaviorName(&quot;PROPAGATION_REQUIRED&quot;);</span>
+<span class="fc" id="L321">                                         return aTXPolicy;</span>
+                                      });
+         }
+<span class="nc" id="L324">         catch (NoSuchBeanDefinitionException e){</span>
+<span class="nc" id="L325">            log.info(&quot;No {} beans defined; not creating {} bean&quot;, connectionFactoryClass.getName(), aTransactedPolicyType.getPolicyBeanName());</span>
+<span class="fc" id="L326">         }</span>
+<span class="fc" id="L327">      });</span>
+<span class="fc" id="L328">   }</span>
+
+   private static String normalizeBasePath(final String theBasePath) {
+<span class="fc" id="L331">      final var aMatcher = znodeBasePathPattern.matcher(theBasePath);</span>
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">      if (aMatcher.matches()) {</span>
+<span class="fc" id="L333">         return aMatcher.group(1);</span>
+      }
+<span class="nc" id="L335">      return theBasePath;</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.7.202105040129</span></div></body></html>
