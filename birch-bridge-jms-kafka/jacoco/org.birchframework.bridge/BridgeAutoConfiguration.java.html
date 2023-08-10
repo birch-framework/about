@@ -62,7 +62,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 /**
  * Auto-configuration for the bridge(s).  Supports ActiveMQ, IBM MQ, and Tibco EMS.  Requires dependencies on exactly one of the 3
- * supported JMS providers.  Each of the supported JMS providers are configured via their own auto-configurations.  This auto-configuration merely
+ * supported JMS providers.  Each of the supported JMS providers are configured via their own auto-configurations.  This autoconfiguration merely
  * provides the source/destination configuration, including their respective listeners.
  * The configuration supports multiple bridges, as long as the underlying JMS provider for all bridges is one of the aforementioned.
  * &lt;p/&gt;
@@ -126,20 +126,19 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
  * @author Keivan Khalichi
  */
 @Configuration(proxyBeanMethods = false)
-@ComponentScan(basePackages = {
-   &quot;org.birchframework.bridge&quot;, &quot;org.birchframework.bridge.dataformat&quot;,
-   &quot;org.birchframework.framework.spring&quot;,
-   &quot;org.springframework.boot.autoconfigure.jackson&quot;})
+@ComponentScan(basePackages = {&quot;org.birchframework.bridge&quot;, &quot;org.birchframework.bridge.dataformat&quot;,
+                               &quot;org.birchframework.framework.spring&quot;,
+                               &quot;org.springframework.boot.autoconfigure.jackson&quot;})
 @EnableAutoConfiguration
 @EnableConfigurationProperties(BirchProperties.class)
 @AutoConfigureBefore(CamelAutoConfiguration.class)
 @AutoConfigureAfter(name = {&quot;org.springframework.boot.autoconfigure.jms.activemq.ActiveMQAutoConfiguration&quot;,
                             &quot;com.ibm.mq.spring.boot.MQAutoConfiguration&quot;, &quot;org.birchframework.ems.EMSAutoConfiguration&quot;
 })
-<span class="fc" id="L139">@Slf4j</span>
+<span class="fc" id="L138">@Slf4j</span>
 public class BridgeAutoConfiguration {
 
-<span class="fc" id="L142">   private static final Pattern znodeBasePathPattern         = Pattern.compile(&quot;/(.*)&quot;);</span>
+<span class="fc" id="L141">   private static final Pattern znodeBasePathPattern         = Pattern.compile(&quot;/(.*)&quot;);</span>
    private static final String  KAFKA_BROADCAST_DIRECT_ROUTE = &quot;direct:kafka-broadcast&quot;;
    private static final String  ZOOKEEPER_SET_DIRECT_ROUTE   = &quot;direct:zookeeper-set&quot;;
 
@@ -148,18 +147,18 @@ public class BridgeAutoConfiguration {
 
    private final Map&lt;String, BridgeProperties&gt;                bridges;
    private final Set&lt;String&gt;                                  zookeeperEndpoints;
-<span class="fc" id="L151">   private final EnumMap&lt;BridgeSource, AbstractBridgeFactory&gt; bridgeFactories = new EnumMap&lt;&gt;(BridgeSource.class);</span>
+<span class="fc" id="L150">   private final EnumMap&lt;BridgeSource, AbstractBridgeFactory&gt; bridgeFactories = new EnumMap&lt;&gt;(BridgeSource.class);</span>
    private final BridgesGlobalConfigs                         bridgesGlobalConfigs;
    private final GenericApplicationContext                    context;
    private final CamelContext                                 camelContext;
 
-<span class="fc" id="L156">   public BridgeAutoConfiguration(final BirchProperties theProperties, final GenericApplicationContext theContext, final CamelContext theCamelContext) {</span>
-<span class="fc" id="L157">      this.bridges              = theProperties.getBridges();</span>
-<span class="fc" id="L158">      this.bridgesGlobalConfigs = theProperties.getBridgesGlobalConfigs();</span>
-<span class="fc" id="L159">      this.zookeeperEndpoints   = theProperties.getKafka().getAdmin().getZookeeperServers();</span>
-<span class="fc" id="L160">      this.context              = theContext;</span>
-<span class="fc" id="L161">      this.camelContext         = theCamelContext;</span>
-<span class="fc" id="L162">   }</span>
+<span class="fc" id="L155">   public BridgeAutoConfiguration(final BirchProperties theProperties, final GenericApplicationContext theContext, final CamelContext theCamelContext) {</span>
+<span class="fc" id="L156">      this.bridges              = theProperties.getBridges();</span>
+<span class="fc" id="L157">      this.bridgesGlobalConfigs = theProperties.getBridgesGlobalConfigs();</span>
+<span class="fc" id="L158">      this.zookeeperEndpoints   = theProperties.getKafka().getAdmin().getZookeeperServers();</span>
+<span class="fc" id="L159">      this.context              = theContext;</span>
+<span class="fc" id="L160">      this.camelContext         = theCamelContext;</span>
+<span class="fc" id="L161">   }</span>
 
    /**
     * Create bridges.
@@ -167,130 +166,128 @@ public class BridgeAutoConfiguration {
    @PostConstruct
    @SuppressWarnings(&quot;unchecked&quot;)
    protected void init() {
-<span class="fc" id="L170">      this.registerTransactedPolicy(QueueConnectionFactory.class, TopicConnectionFactory.class);</span>
+<span class="fc" id="L169">      this.registerTransactedPolicy(QueueConnectionFactory.class, TopicConnectionFactory.class);</span>
 
-<span class="fc" id="L172">      final var aBridgeFactoryBeans = this.context.getBeansOfType(AbstractBridgeFactory.class);</span>
-<span class="pc bpc" id="L173" title="1 of 2 branches missed.">      if (CollectionUtils.isEmpty(aBridgeFactoryBeans)) {</span>
-<span class="nc" id="L174">         log.error(&quot;No bridge factory beans found&quot;);</span>
+<span class="fc" id="L171">      final var aBridgeFactoryBeans = this.context.getBeansOfType(AbstractBridgeFactory.class);</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">      if (CollectionUtils.isEmpty(aBridgeFactoryBeans)) {</span>
+<span class="nc" id="L173">         log.error(&quot;No bridge factory beans found&quot;);</span>
       }
       else {
-<span class="fc" id="L177">         aBridgeFactoryBeans.forEach((k, v) -&gt; this.bridgeFactories.put(v.getSource(), v));</span>
+<span class="fc" id="L176">         aBridgeFactoryBeans.forEach((k, v) -&gt; this.bridgeFactories.put(v.getSource(), v));</span>
 
-<span class="fc" id="L179">         this.bridges.forEach((name, properties) -&gt; {</span>
-<span class="pc bpc" id="L180" title="1 of 2 branches missed.">            if (properties.isEnabled()) {</span>
-<span class="pc bpc" id="L181" title="1 of 2 branches missed.">               if (properties.getSource() == null) {</span>
-<span class="nc" id="L182">                  throw new ConfigurationException(B31010);</span>
+<span class="fc" id="L178">         this.bridges.forEach((name, properties) -&gt; {</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">            if (properties.isEnabled()) {</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">               if (properties.getSource() == null) {</span>
+<span class="nc" id="L181">                  throw new ConfigurationException(B31010);</span>
                }
-<span class="fc" id="L184">               final var aBridgeFactory = this.bridgeFactories.get(properties.getSource());</span>
-<span class="pc bpc" id="L185" title="1 of 2 branches missed.">               if (aBridgeFactory == null) {</span>
-<span class="nc" id="L186">                  throw new ConfigurationException(B31000);</span>
+<span class="fc" id="L183">               final var aBridgeFactory = this.bridgeFactories.get(properties.getSource());</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">               if (aBridgeFactory == null) {</span>
+<span class="nc" id="L185">                  throw new ConfigurationException(B31000);</span>
                }
                try {
-<span class="fc" id="L189">                  RouteBuilder.addRoutes(this.camelContext, aBridgeFactory.createBridge(name, properties, this.bridgesGlobalConfigs));</span>
-<span class="fc" id="L190">                  log.info(&quot;Created bridge {} with source {} and properties {}&quot;, name, aBridgeFactory.getSource(), properties);</span>
+<span class="fc" id="L188">                  RouteBuilder.addRoutes(this.camelContext, aBridgeFactory.createBridge(name, properties, this.bridgesGlobalConfigs));</span>
+<span class="fc" id="L189">                  log.info(&quot;Created bridge {} with source {} and properties {}&quot;, name, aBridgeFactory.getSource(), properties);</span>
                }
-<span class="nc" id="L192">               catch (Exception e) {</span>
-<span class="nc" id="L193">                  throw new ConfigurationException(B31048, e);</span>
-<span class="fc" id="L194">               }</span>
-<span class="fc" id="L195">            }</span>
+<span class="nc" id="L191">               catch (Exception e) {</span>
+<span class="nc" id="L192">                  throw new ConfigurationException(B31048, e);</span>
+<span class="fc" id="L193">               }</span>
+<span class="fc" id="L194">            }</span>
             else {
-<span class="nc" id="L197">               log.info(&quot;Bridge {} is disabled&quot;, name);</span>
+<span class="nc" id="L196">               log.info(&quot;Bridge {} is disabled&quot;, name);</span>
             }
-<span class="fc" id="L199">         });</span>
+<span class="fc" id="L198">         });</span>
       }
-<span class="fc" id="L201">   }</span>
+<span class="fc" id="L200">   }</span>
 
    @Bean
    @ConditionalOnExpression(&quot;!'${birch.bridges-global-configs.affinity:}'.isEmpty() &amp;&amp; !'${birch.bridges-global-configs.service-topic:}'.isEmpty()&quot;)
    @SuppressWarnings(&quot;AutoBoxing&quot;)
    protected LambdaRouteBuilder bridgesRESTEndpoint(final BirchProperties theProperties) {
-<span class="fc" id="L207">      final var aZKBasePath = normalizeBasePath(theProperties.getBridgesGlobalConfigs().getZookeeperBasePath());</span>
-<span class="fc" id="L208">      final var aZKServers = String.join(&quot;,&quot;, this.zookeeperEndpoints);</span>
-<span class="fc" id="L209">      final var anAffinity = theProperties.getBridgesGlobalConfigs().getAffinity();</span>
-<span class="fc" id="L210">      final var aZKReadURI = String.format(&quot;zookeeper://%s/%s/active-affinity&quot;, aZKServers, aZKBasePath);</span>
-<span class="fc" id="L211">      final var aZKWriteURI = String.format(&quot;zookeeper://%s/%s/active-affinity?create=true&amp;createMode=PERSISTENT&quot;, aZKServers, aZKBasePath);</span>
+<span class="fc" id="L206">      final var aZKBasePath = normalizeBasePath(theProperties.getBridgesGlobalConfigs().getZookeeperBasePath());</span>
+<span class="fc" id="L207">      final var aZKServers = String.join(&quot;,&quot;, this.zookeeperEndpoints);</span>
+<span class="fc" id="L208">      final var anAffinity = theProperties.getBridgesGlobalConfigs().getAffinity();</span>
 
-<span class="fc" id="L213">      return rb -&gt; {</span>
-<span class="fc" id="L214">         rb.rest(&quot;/routes&quot;)</span>
-<span class="fc" id="L215">           .id(&quot;bridges-endpoints&quot;)</span>
-<span class="fc" id="L216">           .post(&quot;/{action}&quot;)</span>
-<span class="fc" id="L217">              .route()</span>
-<span class="fc" id="L218">              .routeId(&quot;service-message-producer&quot;)</span>
-<span class="fc" id="L219">              .autoStartup(true)</span>
-<span class="pc" id="L220">              .filter(exchange -&gt; StringUtils.equalsAny((String) exchange.getIn().getHeader(&quot;action&quot;), START_ACTION, STOP_ACTION))</span>
-<span class="fc" id="L221">              .process(exchange -&gt; {</span>
-<span class="nc" id="L222">                 final var aMessage = exchange.getIn();</span>
-<span class="nc" id="L223">                 aMessage.setBody(new ServiceMessageDTO(anAffinity, aMessage.getHeader(&quot;action&quot;, String.class)));</span>
-<span class="nc" id="L224">              })</span>
-<span class="fc" id="L225">              .choice()</span>
-<span class="pc" id="L226">                 .when(exchange -&gt; StringUtils.isBlank(aZKServers))</span>
-<span class="fc" id="L227">                    .to(KAFKA_BROADCAST_DIRECT_ROUTE)</span>
-<span class="fc" id="L228">                 .otherwise()</span>
-<span class="fc" id="L229">                    .multicast().to(KAFKA_BROADCAST_DIRECT_ROUTE, ZOOKEEPER_SET_DIRECT_ROUTE)</span>
-<span class="fc" id="L230">              .end()</span>
-<span class="fc" id="L231">           .endRest()</span>
-<span class="fc" id="L232">           .get(&quot;/isActive&quot;)</span>
-<span class="fc" id="L233">              .produces(APPLICATION_JSON_VALUE)</span>
-<span class="fc" id="L234">              .route()</span>
-<span class="fc" id="L235">              .routeId(&quot;active-reader-producer&quot;)</span>
-<span class="fc" id="L236">              .choice()</span>
-<span class="pc" id="L237">                 .when(exchange -&gt; StringUtils.isBlank(aZKServers))</span>
-<span class="pc" id="L238">                    .transform().body(body -&gt; new SimpleEntry&lt;&gt;(&quot;error&quot;, &quot;Affinity state maintenance is not configured&quot;))</span>
-<span class="fc" id="L239">                 .endChoice()</span>
-<span class="fc" id="L240">                 .otherwise()</span>
-<span class="fc" id="L241">                    .setHeader(ZooKeeperMessage.ZOOKEEPER_OPERATION).constant(&quot;READ&quot;)</span>
-<span class="fc" id="L242">                    .to(aZKReadURI)</span>
-<span class="pc" id="L243">                    .transform().message(message -&gt; new SimpleEntry&lt;&gt;(&quot;isActive&quot;, StringUtils.equals(message.getBody(String.class), anAffinity)))</span>
-<span class="fc" id="L244">                 .endChoice()</span>
-<span class="fc" id="L245">              .end()</span>
-<span class="fc" id="L246">              .marshal().json()</span>
-<span class="fc" id="L247">              .log(DEBUG, &quot;${body}&quot;);</span>
+<span class="fc" id="L210">      return rb -&gt; {</span>
+<span class="fc" id="L211">         rb.rest(&quot;/routes&quot;)</span>
+<span class="fc" id="L212">           .id(&quot;bridges-endpoints&quot;)</span>
+<span class="fc" id="L213">           .post(&quot;/{action}&quot;)</span>
+<span class="fc" id="L214">              .route()</span>
+<span class="fc" id="L215">              .routeId(&quot;service-message-producer&quot;)</span>
+<span class="fc" id="L216">              .autoStartup(true)</span>
+<span class="pc" id="L217">              .filter(exchange -&gt; StringUtils.equalsAny((String) exchange.getIn().getHeader(&quot;action&quot;), START_ACTION, STOP_ACTION))</span>
+<span class="fc" id="L218">              .process(exchange -&gt; {</span>
+<span class="nc" id="L219">                 final var aMessage = exchange.getIn();</span>
+<span class="nc" id="L220">                 aMessage.setBody(new ServiceMessageDTO(anAffinity, aMessage.getHeader(&quot;action&quot;, String.class)));</span>
+<span class="nc" id="L221">              })</span>
+<span class="fc" id="L222">              .choice()</span>
+<span class="pc" id="L223">                 .when(exchange -&gt; StringUtils.isBlank(aZKServers))</span>
+<span class="fc" id="L224">                    .to(KAFKA_BROADCAST_DIRECT_ROUTE)</span>
+<span class="fc" id="L225">                 .otherwise()</span>
+<span class="fc" id="L226">                    .multicast().to(KAFKA_BROADCAST_DIRECT_ROUTE, ZOOKEEPER_SET_DIRECT_ROUTE)</span>
+<span class="fc" id="L227">              .end()</span>
+<span class="fc" id="L228">           .endRest()</span>
+<span class="fc" id="L229">           .get(&quot;/isActive&quot;)</span>
+<span class="fc" id="L230">              .produces(APPLICATION_JSON_VALUE)</span>
+<span class="fc" id="L231">              .route()</span>
+<span class="fc" id="L232">              .routeId(&quot;active-reader-producer&quot;)</span>
+<span class="fc" id="L233">              .choice()</span>
+<span class="pc" id="L234">                 .when(exchange -&gt; StringUtils.isBlank(aZKServers))</span>
+<span class="pc" id="L235">                    .transform().body(body -&gt; new SimpleEntry&lt;&gt;(&quot;error&quot;, &quot;Affinity state maintenance is not configured&quot;))</span>
+<span class="fc" id="L236">                 .endChoice()</span>
+<span class="fc" id="L237">                 .otherwise()</span>
+<span class="fc" id="L238">                    .setHeader(ZooKeeperMessage.ZOOKEEPER_OPERATION).constant(&quot;READ&quot;)</span>
+<span class="fc" id="L239">                    .toF(&quot;zookeeper://%s/%s/active-affinity&quot;, aZKServers, aZKBasePath)</span>
+<span class="pc" id="L240">                    .transform().message(message -&gt; new SimpleEntry&lt;&gt;(&quot;isActive&quot;, StringUtils.equals(message.getBody(String.class), anAffinity)))</span>
+<span class="fc" id="L241">                 .endChoice()</span>
+<span class="fc" id="L242">              .end()</span>
+<span class="fc" id="L243">              .marshal().json()</span>
+<span class="fc" id="L244">              .log(DEBUG, &quot;${body}&quot;);</span>
 
-<span class="fc" id="L249">         rb.from(KAFKA_BROADCAST_DIRECT_ROUTE)</span>
-<span class="fc" id="L250">           .marshal().custom(ServiceMessageDataFormat.BEAN_NAME)</span>
-<span class="fc" id="L251">           .toF(&quot;kafka:%s&quot;, theProperties.getBridgesGlobalConfigs().getServiceTopic());</span>
+<span class="fc" id="L246">         rb.from(KAFKA_BROADCAST_DIRECT_ROUTE)</span>
+<span class="fc" id="L247">           .marshal().custom(ServiceMessageDataFormat.BEAN_NAME)</span>
+<span class="fc" id="L248">           .toF(&quot;kafka:%s&quot;, theProperties.getBridgesGlobalConfigs().getServiceTopic());</span>
 
-<span class="pc bpc" id="L253" title="1 of 2 branches missed.">         if (StringUtils.isNotBlank(aZKServers)) {</span>
-<span class="fc" id="L254">            rb.from(ZOOKEEPER_SET_DIRECT_ROUTE)</span>
-<span class="fc" id="L255">              .setHeader(ZooKeeperMessage.ZOOKEEPER_OPERATION).constant(&quot;WRITE&quot;)</span>
-<span class="fc" id="L256">              .choice()</span>
-<span class="pc" id="L257">                 .when(exchange -&gt; StringUtils.equals(exchange.getIn().getBody(ServiceMessageDTO.class).getAction(), START_ACTION))</span>
-<span class="fc" id="L258">                    .transform().body(ServiceMessageDTO.class, ServiceMessageDTO::getAffinity)</span>
-<span class="fc" id="L259">                    .to(aZKWriteURI)</span>
-<span class="fc" id="L260">                    .log(DEBUG, &quot;${header[CamelZooKeeperNode]}: ${bodyOneLine}&quot;)</span>
-<span class="pc" id="L261">                 .when(exchange -&gt; StringUtils.equals(exchange.getIn().getBody(ServiceMessageDTO.class).getAction(), STOP_ACTION))</span>
-<span class="pc" id="L262">                    .setBody(exchange -&gt; &quot;&quot;)</span>
-<span class="fc" id="L263">                    .to(aZKWriteURI)</span>
-<span class="fc" id="L264">                    .log(DEBUG, &quot;${header[CamelZooKeeperNode]}: ${bodyOneLine}&quot;)</span>
-<span class="fc" id="L265">              .end();</span>
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">         if (StringUtils.isNotBlank(aZKServers)) {</span>
+<span class="fc" id="L251">            rb.from(ZOOKEEPER_SET_DIRECT_ROUTE)</span>
+<span class="fc" id="L252">              .setHeader(ZooKeeperMessage.ZOOKEEPER_OPERATION).constant(&quot;WRITE&quot;)</span>
+<span class="fc" id="L253">              .choice()</span>
+<span class="pc" id="L254">                 .when(exchange -&gt; StringUtils.equals(exchange.getIn().getBody(ServiceMessageDTO.class).getAction(), START_ACTION))</span>
+<span class="fc" id="L255">                    .transform().body(ServiceMessageDTO.class, ServiceMessageDTO::getAffinity)</span>
+<span class="fc" id="L256">                    .toF(&quot;zookeeper://%s/%s/active-affinity?create=true&amp;createMode=PERSISTENT&quot;, aZKServers, aZKBasePath)</span>
+<span class="fc" id="L257">                    .log(DEBUG, &quot;${header[CamelZooKeeperNode]}: ${bodyOneLine}&quot;)</span>
+<span class="pc" id="L258">                 .when(exchange -&gt; StringUtils.equals(exchange.getIn().getBody(ServiceMessageDTO.class).getAction(), STOP_ACTION))</span>
+<span class="pc" id="L259">                    .setBody(exchange -&gt; &quot;&quot;)</span>
+<span class="fc" id="L260">                    .toF(&quot;zookeeper://%s/%s/active-affinity?create=true&amp;createMode=PERSISTENT&quot;, aZKServers, aZKBasePath)</span>
+<span class="fc" id="L261">                    .log(DEBUG, &quot;${header[CamelZooKeeperNode]}: ${bodyOneLine}&quot;)</span>
+<span class="fc" id="L262">              .end();</span>
          }
-<span class="fc" id="L267">      };</span>
+<span class="fc" id="L264">      };</span>
    }
 
    @Bean
    @ConditionalOnExpression(&quot;!'${birch.bridges-global-configs.affinity:}'.isEmpty() &amp;&amp; !'${birch.bridges-global-configs.service-topic:}'.isEmpty()&quot;)
    protected LambdaRouteBuilder serviceMessageConsumer(final BirchProperties theProperties)
                                 throws UnknownHostException {
-<span class="fc" id="L274">      final var aBridgeNamesList = new ArrayList&lt;&gt;(this.bridges.keySet());</span>
-<span class="fc" id="L275">      final var aGroupID = String.format(&quot;%s-%s&quot;, InetAddress.getLocalHost().getHostName(), RandomStringUtils.random(5, true, false).toLowerCase());</span>
-<span class="fc" id="L276">      return rb -&gt; rb.fromF(&quot;kafka:%s?consumersCount=1&amp;groupId=%s&quot;, theProperties.getBridgesGlobalConfigs().getServiceTopic(), aGroupID)</span>
-<span class="fc" id="L277">                     .routeId(&quot;service-message-consumer&quot;)</span>
-<span class="fc" id="L278">                     .autoStartup(true)</span>
-<span class="fc" id="L279">                     .unmarshal().custom(ServiceMessageDataFormat.BEAN_NAME)</span>
-<span class="fc" id="L280">                     .filter(exchange -&gt; {</span>
-<span class="nc" id="L281">                        final var aPayload = exchange.getMessage().getBody(ServiceMessageDTO.class);</span>
-<span class="nc" id="L282">                        return StringUtils.equals(aPayload.getAffinity(), theProperties.getBridgesGlobalConfigs().getAffinity());</span>
+<span class="fc" id="L271">      final var aBridgeNamesList = new ArrayList&lt;&gt;(this.bridges.keySet());</span>
+<span class="fc" id="L272">      final var aGroupID = String.format(&quot;%s-%s&quot;, InetAddress.getLocalHost().getHostName(), RandomStringUtils.random(5, true, false).toLowerCase());</span>
+<span class="fc" id="L273">      return rb -&gt; rb.fromF(&quot;kafka:%s?consumersCount=1&amp;groupId=%s&quot;, theProperties.getBridgesGlobalConfigs().getServiceTopic(), aGroupID)</span>
+<span class="fc" id="L274">                     .routeId(&quot;service-message-consumer&quot;)</span>
+<span class="fc" id="L275">                     .autoStartup(true)</span>
+<span class="fc" id="L276">                     .unmarshal().custom(ServiceMessageDataFormat.BEAN_NAME)</span>
+<span class="fc" id="L277">                     .filter(exchange -&gt; {</span>
+<span class="nc" id="L278">                        final var aPayload = exchange.getMessage().getBody(ServiceMessageDTO.class);</span>
+<span class="nc" id="L279">                        return StringUtils.equals(aPayload.getAffinity(), theProperties.getBridgesGlobalConfigs().getAffinity());</span>
                      })
-<span class="pc" id="L284">                     .setHeader(&quot;actionText&quot;).body(ServiceMessageDTO.class, body -&gt; StringUtils.capitalize(body.getAction()))</span>
-<span class="fc" id="L285">                     .log(&quot;${header.actionText} bridges...&quot;)</span>
-<span class="fc" id="L286">                     .process(exchange -&gt; {</span>
-<span class="nc" id="L287">                        final var anAction = exchange.getIn().getBody(ServiceMessageDTO.class).getAction();</span>
-<span class="nc" id="L288">                        aBridgeNamesList.parallelStream().forEach(bridge -&gt; {</span>
-<span class="nc" id="L289">                           final var aURI = String.format(&quot;controlbus:route?routeId=%s&amp;action=%s&quot;, bridge, anAction);</span>
-<span class="nc" id="L290">                           exchange.getContext().createProducerTemplate().send(aURI, exchange);</span>
-<span class="nc" id="L291">                        });</span>
-<span class="nc" id="L292">                     })</span>
-<span class="fc" id="L293">                     .log(&quot;${header.actionText} completed.&quot;);</span>
+<span class="pc" id="L281">                     .setHeader(&quot;actionText&quot;).body(ServiceMessageDTO.class, body -&gt; StringUtils.capitalize(body.getAction()))</span>
+<span class="fc" id="L282">                     .log(&quot;${header.actionText} bridges...&quot;)</span>
+<span class="fc" id="L283">                     .process(exchange -&gt; {</span>
+<span class="nc" id="L284">                        final var anAction = exchange.getIn().getBody(ServiceMessageDTO.class).getAction();</span>
+<span class="nc" id="L285">                        aBridgeNamesList.parallelStream().forEach(bridge -&gt; {</span>
+<span class="nc" id="L286">                           final var aURI = String.format(&quot;controlbus:route?routeId=%s&amp;action=%s&quot;, bridge, anAction);</span>
+<span class="nc" id="L287">                           exchange.getContext().createProducerTemplate().send(aURI, exchange);</span>
+<span class="nc" id="L288">                        });</span>
+<span class="nc" id="L289">                     })</span>
+<span class="fc" id="L290">                     .log(&quot;${header.actionText} completed.&quot;);</span>
    }
 
    /**
@@ -301,40 +298,40 @@ public class BridgeAutoConfiguration {
     */
    @SuppressWarnings({&quot;VariableArgumentMethod&quot;, &quot;unchecked&quot;})
    private void registerTransactedPolicy(final Class&lt;? extends ConnectionFactory&gt;... theConnectionFactoryTypes) {
-<span class="fc" id="L304">      Stream.of(theConnectionFactoryTypes).forEach(connectionFactoryClass -&gt; {</span>
-<span class="fc bfc" id="L305" title="All 2 branches covered.">         final var aTransactedPolicyType = TopicConnectionFactory.class.isAssignableFrom(connectionFactoryClass) ? TransactedPolicyType.TOPIC : TransactedPolicyType.QUEUE;</span>
+<span class="fc" id="L301">      Stream.of(theConnectionFactoryTypes).forEach(connectionFactoryClass -&gt; {</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">         final var aTransactedPolicyType = TopicConnectionFactory.class.isAssignableFrom(connectionFactoryClass) ? TransactedPolicyType.TOPIC : TransactedPolicyType.QUEUE;</span>
          try {
-<span class="fc" id="L307">            final var aConnectionFactory = this.context.getBean(connectionFactoryClass);</span>
-<span class="fc" id="L308">            final Supplier&lt;PlatformTransactionManager&gt; aTransactionManagerSupplier = () -&gt; {</span>
+<span class="fc" id="L304">            final var aConnectionFactory = this.context.getBean(connectionFactoryClass);</span>
+<span class="fc" id="L305">            final Supplier&lt;PlatformTransactionManager&gt; aTransactionManagerSupplier = () -&gt; {</span>
                try {
-<span class="nc" id="L310">                  return this.context.getBean(aTransactedPolicyType.getTxManagerBeanName(), PlatformTransactionManager.class);</span>
+<span class="nc" id="L307">                  return this.context.getBean(aTransactedPolicyType.getTxManagerBeanName(), PlatformTransactionManager.class);</span>
                }
-<span class="fc" id="L312">               catch (NoSuchBeanDefinitionException e) {</span>
-<span class="fc" id="L313">                  log.info(&quot;No transaction manager found for {}; registering one&quot;, connectionFactoryClass.getName());</span>
-<span class="fc" id="L314">                  this.context.registerBean(aTransactedPolicyType.getTxManagerBeanName(), JmsTransactionManager.class,</span>
-<span class="fc" id="L315">                                            () -&gt; new JmsTransactionManager(aConnectionFactory));</span>
-<span class="fc" id="L316">                  return this.context.getBean(aTransactedPolicyType.getTxManagerBeanName(), PlatformTransactionManager.class);</span>
+<span class="fc" id="L309">               catch (NoSuchBeanDefinitionException e) {</span>
+<span class="fc" id="L310">                  log.info(&quot;No transaction manager found for {}; registering one&quot;, connectionFactoryClass.getName());</span>
+<span class="fc" id="L311">                  this.context.registerBean(aTransactedPolicyType.getTxManagerBeanName(), JmsTransactionManager.class,</span>
+<span class="fc" id="L312">                                            () -&gt; new JmsTransactionManager(aConnectionFactory));</span>
+<span class="fc" id="L313">                  return this.context.getBean(aTransactedPolicyType.getTxManagerBeanName(), PlatformTransactionManager.class);</span>
                }
             };
-<span class="fc" id="L319">            this.context.registerBean(aTransactedPolicyType.getPolicyBeanName(), SpringTransactionPolicy.class,</span>
+<span class="fc" id="L316">            this.context.registerBean(aTransactedPolicyType.getPolicyBeanName(), SpringTransactionPolicy.class,</span>
                                       () -&gt; {
-<span class="fc" id="L321">                                         final var aTXPolicy = new SpringTransactionPolicy(aTransactionManagerSupplier.get());</span>
-<span class="fc" id="L322">                                         aTXPolicy.setPropagationBehaviorName(&quot;PROPAGATION_REQUIRED&quot;);</span>
-<span class="fc" id="L323">                                         return aTXPolicy;</span>
+<span class="fc" id="L318">                                         final var aTXPolicy = new SpringTransactionPolicy(aTransactionManagerSupplier.get());</span>
+<span class="fc" id="L319">                                         aTXPolicy.setPropagationBehaviorName(&quot;PROPAGATION_REQUIRED&quot;);</span>
+<span class="fc" id="L320">                                         return aTXPolicy;</span>
                                       });
          }
-<span class="nc" id="L326">         catch (NoSuchBeanDefinitionException e){</span>
-<span class="nc" id="L327">            log.info(&quot;No {} beans defined; not creating {} bean&quot;, connectionFactoryClass.getName(), aTransactedPolicyType.getPolicyBeanName());</span>
-<span class="fc" id="L328">         }</span>
-<span class="fc" id="L329">      });</span>
-<span class="fc" id="L330">   }</span>
+<span class="nc" id="L323">         catch (NoSuchBeanDefinitionException e){</span>
+<span class="nc" id="L324">            log.info(&quot;No {} beans defined; not creating {} bean&quot;, connectionFactoryClass.getName(), aTransactedPolicyType.getPolicyBeanName());</span>
+<span class="fc" id="L325">         }</span>
+<span class="fc" id="L326">      });</span>
+<span class="fc" id="L327">   }</span>
 
    private static String normalizeBasePath(final String theBasePath) {
-<span class="fc" id="L333">      final var aMatcher = znodeBasePathPattern.matcher(theBasePath);</span>
-<span class="pc bpc" id="L334" title="1 of 2 branches missed.">      if (aMatcher.matches()) {</span>
-<span class="fc" id="L335">         return aMatcher.group(1);</span>
+<span class="fc" id="L330">      final var aMatcher = znodeBasePathPattern.matcher(theBasePath);</span>
+<span class="pc bpc" id="L331" title="1 of 2 branches missed.">      if (aMatcher.matches()) {</span>
+<span class="fc" id="L332">         return aMatcher.group(1);</span>
       }
-<span class="nc" id="L337">      return theBasePath;</span>
+<span class="nc" id="L334">      return theBasePath;</span>
    }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.7.202105040129</span></div></body></html>

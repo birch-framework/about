@@ -1,7 +1,7 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 birch-common,org.birchframework.framework.regex,ParseException,9,0,0,0,4,0,2,0,2,0
 birch-common,org.birchframework.framework.regex,Parser.ParseClassDescriptor,0,28,0,0,0,5,0,4,0,4
-birch-common,org.birchframework.framework.regex,Parser,35,212,7,7,7,48,7,17,0,17
+birch-common,org.birchframework.framework.regex,Parser,30,207,6,6,6,46,6,16,0,16
 birch-common,org.birchframework.framework.regex,Parser.FieldDescriptor,0,9,0,0,0,4,0,1,0,1
 birch-common,org.birchframework.framework.text.jms,JMSMessage,0,15,0,0,0,3,0,3,0,3
 birch-common,org.birchframework.framework.text.jms,JMSMessageMarshaller,8,117,2,13,2,34,3,11,1,3
